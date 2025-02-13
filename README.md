@@ -1,4 +1,4 @@
-# PrototypesVulnerabilities
+# Security and robustness of prototype-based explanation methods, especially against adversarial attacks
 Master Final Thesis - Research into the security and robustness of prototype-based explanation methods within XAI.
 
 ## Introduction
