@@ -1,3 +1,5 @@
+Organización del código
+```
 my_project/
 ├── src/  # Código modularizado
 │   ├── config.py  # Parámetros del modelo
@@ -13,4 +15,4 @@ my_project/
 ├── README.md  # Explicación del proyecto
 ├── attacks_tests.ipynb  # Notebook para evaluar ataques adversarios
 ├── analisis_train.ipynb  # Notebook principal para ejecutar experimentos
-
+```
