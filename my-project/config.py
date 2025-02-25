@@ -24,8 +24,7 @@ input_shape = (1, n_input_channel, input_height, input_height) # input shape to 
 n_classes = 10
 
 # Network Parameters
-n_prototypes = 15         # the number of prototypes
+# n_prototypes = 15         # the number of prototypes
 n_layers = 4
 n_maps = 32
 
-modeltype = 'standard' # 'standard'

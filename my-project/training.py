@@ -13,49 +13,66 @@ from .cae_model import *
 from .autoencoders import print_and_write
 from .loss_functions import *
 
-
-start_time= time.time()
-
-
-# model selection
-if modeltype == 'S15':
-    n_prototypes = 10 * n_classes   
-    model = S15(input_shape=input_shape, n_maps=n_maps, n_prototypes=n_prototypes, 
-                 n_layers=n_layers, n_classes=n_classes).to(device)
-elif modeltype == 'S30':
-    model = S30(input_shape=input_shape, n_maps=n_maps, n_prototypes=n_prototypes, 
-                 n_layers=n_layers, n_classes=n_classes).to(device)
-elif modeltype == 'B30':
-    odel = B30(input_shape=input_shape, n_maps=n_maps, n_prototypes=n_prototypes, 
-                 n_layers=n_layers, n_classes=n_classes).to(device)
-
-
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-# download MNIST data
-train_loader, val_loader = get_train_val_loader(data_folder, batch_size, random_seed, augment=False, val_size=0.2,
-                           shuffle=True, show_sample=False, num_workers=0, pin_memory=True)
-test_loader = get_test_loader(data_folder, batch_size, shuffle=True, num_workers=0, pin_memory=True)
-
-
-# save configuration clearly
-model_folder = os.path.join(os.getcwd(), "saved_model", "mnist_model", "mnist_cae_1")
-makedirs(model_folder)
-img_folder = os.path.join(model_folder, "img")
-makedirs(img_folder)
-model_filename = "mnist_cae"
-
-# console_log is the handle to a text file that records the console output
-log_folder=os.path.join(model_folder, "log")
-makedirs(log_folder)
-console_log = open(os.path.join(log_folder, "console_log.txt"), "w+")
-
-
-
-
-
 # train the model
-def train_model():
+def train_model(model_type, loss_type):
+    
+    
+    start_time= time.time()
+
+    # download MNIST data
+    train_loader, val_loader = get_train_val_loader(data_folder, batch_size, random_seed, augment=False, val_size=0.2,
+                            shuffle=True, show_sample=False, num_workers=0, pin_memory=True)
+    test_loader = get_test_loader(data_folder, batch_size, shuffle=True, num_workers=0, pin_memory=True)
+
+    # model selection
+    if model_type == 'S15':
+        n_prototypes =  15   
+        model = S15(input_shape=input_shape, n_maps=n_maps, n_prototypes=n_prototypes, 
+                    n_layers=n_layers, n_classes=n_classes).to(device)
+    elif model_type == 'S30':
+        n_prototypes =  30
+        model = S30(input_shape=input_shape, n_maps=n_maps, n_prototypes=n_prototypes, 
+                    n_layers=n_layers, n_classes=n_classes).to(device)
+    elif model_type == 'B30':
+        n_prototypes =  30
+        model = B30(input_shape=input_shape, n_maps=n_maps, prototypes_by_class=3, 
+                    n_layers=n_layers, n_classes=n_classes, fill_with=0.5).to(device)
+
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+
+    # save configuration clearly
+    model_folder = os.path.join(os.getcwd(), "saved_model", "mnist_model", model_type)
+    makedirs(model_folder)
+    img_folder = os.path.join(model_folder, "img")
+    makedirs(img_folder)
+    model_filename = "mnist_cae"
+
+    # console_log is the handle to a text file that records the console output
+    log_folder=os.path.join(model_folder, "log")
+    makedirs(log_folder)
+    console_log = open(os.path.join(log_folder, "console_log.txt"), "w+")
+
+
+    config_file_path = os.path.join(model_folder, "config.txt")
+    with open(config_file_path, "w") as config_file:
+        config_file.write("Model Configuration\n")
+        config_file.write("Model Type: " + model_type + "\n")
+        config_file.write("learning_rate: " + str(learning_rate) + "\n")
+        config_file.write("training_epochs: " + str(training_epochs) + "\n")
+        config_file.write("batch_size: " + str(batch_size) + "\n")
+        config_file.write("test_display_step: " + str(test_display_step) + "\n")
+        config_file.write("Loss Type: " + loss_type + "\n")
+        config_file.write("Lambda Class - E "+ str(lambda_class) + "\n")
+        config_file.write("Lambda Encoder - A"+ str(lambda_ae) + "\n")
+        config_file.write("Lambda R1"+ str(lambda_1) + "\n")
+        config_file.write("Lambda R2"+ str(lambda_2) + "\n")
+        config_file.write("Number of Prototypes: " + str(n_prototypes) + "\n")
+        config_file.write("Random Seed: " + str(random_seed) + "\n")
+
+
+    # training loop
     for epoch in range(0, training_epochs):
         print_and_write("#"*80, console_log)
         print_and_write("Epoch: %04d" % (epoch+1)+"/%04d" % (training_epochs), console_log)
@@ -87,7 +104,8 @@ def train_model():
 
 
                 # default loss function
-                train_te, train_ce, train_ae, train_e1, train_e2 = loss_f_default(model, elastic_batch_x, batch_y, pred_y, lambda_class, lambda_ae, lambda_1, lambda_2)
+                if loss_type == 'default':
+                    train_te, train_ce, train_ae, train_e1, train_e2, prototype_distances = loss_f_default(model, elastic_batch_x, batch_y, pred_y, lambda_class, lambda_ae, lambda_1, lambda_2)
 
                 train_te.backward()
 
@@ -110,6 +128,9 @@ def train_model():
                         "\taccuracy: {:.6f}".format(train_ac), console_log)
         print_and_write('training takes {0:.2f} seconds.'.format((time.time() - start)), console_log)
         
+
+
+        ########################################################
         # validation set error terms evaluation
         val_ce, val_ae, val_e1, val_e2, val_te, val_ac = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         
@@ -122,22 +143,10 @@ def train_model():
 
                 pred_y = model.forward(batch_x)
 
-                loss_function = torch.nn.CrossEntropyLoss()
-                val_ce = loss_function(pred_y, batch_y)
+                # default loss function
+                if loss_type == 'default':
+                    train_te, train_ce, train_ae, train_e1, train_e2, prototype_distances = loss_f_default(model, elastic_batch_x, batch_y, pred_y, lambda_class, lambda_ae, lambda_1, lambda_2)
 
-                prototype_distances = model.prototype_layer.prototype_distances
-                feature_vectors = model.feature_vectors
-
-                val_e1 = torch.mean(torch.min(list_of_distances(prototype_distances, feature_vectors.view(-1, model.in_channels_prototype)), dim=1)[0])
-                val_e2 = torch.mean(torch.min(list_of_distances(feature_vectors.view(-1, model.in_channels_prototype ), prototype_distances), dim=1)[0])
-
-                out_decoder = model.decoder(feature_vectors)
-                val_ae = torch.mean(list_of_norms(out_decoder-batch_x))
-
-                val_te = lambda_class * val_ce +\
-                        lambda_1 * val_e1 +\
-                        lambda_2 * val_e2 +\
-                        lambda_ae * val_ae
                 # validation accuracy
                 max_vals, max_indices = torch.max(pred_y,1)
                 n = max_indices.size(0)
@@ -155,6 +164,8 @@ def train_model():
                         "\ttotal error: {:.6f}".format(val_te)+
                         "\taccuracy: {:.6f}".format(val_ac), console_log)
         
+
+        ########################################################
         # test set accuracy evaluation
         if (epoch+1) % test_display_step == 0 or epoch == training_epochs - 1:
             test_ac = 0
@@ -187,7 +198,7 @@ def train_model():
             prototype_imgs = model.decoder(prototype_distances.reshape((-1,10,2,2))).detach().cpu()
 
             # visualize the prototype images
-            print_and_write("Visualizing the prototype images:", console_log)
+            # print_and_write("Visualizing the prototype images:", console_log)
             n_cols = 5
             n_rows = n_prototypes // n_cols + 1 if n_prototypes % n_cols != 0 else n_prototypes // n_cols
             g, b = plt.subplots(n_rows, n_cols, figsize=(n_cols, n_rows))

@@ -1,5 +1,5 @@
 import torch
-from src.utils import list_of_distances, list_of_norms
+from .autoencoders import list_of_distances, list_of_norms
 
 def loss_f_default(model, elastic_batch_x, batch_y, pred_y, lambda_class, lambda_ae, lambda_1, lambda_2):
     # softmax crossentropy loss - E
@@ -23,4 +23,4 @@ def loss_f_default(model, elastic_batch_x, batch_y, pred_y, lambda_class, lambda
             lambda_2 * train_e2 +\
             lambda_ae * train_ae
     
-    return train_te, train_ce, train_ae, train_e1, train_e2
+    return train_te, train_ce, train_ae, train_e1, train_e2, prototype_distances
