@@ -29,13 +29,14 @@ if __name__ == '__main__':
     
     parser.add_argument("-tl",  "--tl",  dest="trainloss",  type=str, default="default",  help="loss function to train the model")
     parser.add_argument("-advatt",  "--advatt",  dest="adversarialattack",  type=str, default="pdglinf",  help="adversarial attack to use")
+    parser.add_argument("-typeattack", "--typeattack",  dest="typeattack",  type=str, default="cenc",  help="type of attack")
     parser.add_argument("-advl",  "--advl",  dest="adversarialloss",  type=str, default="advl",  help="loss function to generate adv examples")
     parser.add_argument("-eps",  "--eps",  dest="eps",  type=float, default=0.3,  help="epsilon value for adversarial attack")
     parser.add_argument("-iters",  "--iters",  dest="iters",  type=int, default=40,  help="number of iterations for adversarial attack")
     parser.add_argument("-alpha",  "--alpha",  dest="alpha",  type=float, default=0.01,  help="alpha value for adversarial attack")
     parser.add_argument("-rs", "--rs",  dest="randstart",  type=str, default="True",  help="random start for adversarial attack")
                         
-    parser.add_argument("-e",  "--e",  dest="epochs",  type=int, default=50,  help="training epochs")
+    parser.add_argument("-e",  "--e",  dest="epochs",  type=int, default=5,  help="training epochs")
     parser.add_argument("-lr",  "--lr",  dest="lr",  type=float, default=0.002,  help="learning rate")
     parser.add_argument("-bs",  "--bs",  dest="batchsize",  type=int, default=250,  help="batch size")
     
@@ -47,13 +48,17 @@ if __name__ == '__main__':
     parser.add_argument("-ls",  "--ls",  dest="lambdasep",  type=float, default=0.2,  help="lambda separation hyperparameter")
     
     parser.add_argument("-s",  "--s",  dest="seed",  type=int, default=1,  help="random seed for reproducibility")
-    parser.add_argument("-path",  "--path",  dest="path",  type=str, default=None,  help="path to the model to finetune")
+    parser.add_argument("-path",  "--path",  dest="path",  type=str, default="/Users/silviaarenalesmunoz/Desktop/MASTER/TFM/Iras TFG/PrototypeDNN-Robustness-main/saved_model/mnist_model/mnist_cae_standard_default_1500_0.002_250_False_0.5_20_1_1_1_0.8_0.2_30_4_32_1/mnist_cae00750.pth",  help="path to the model to finetune")
     
     args = parser.parse_args()
         
 # train the model for MNIST handwritten digit dataset
+print(f"Intentando cargar el modelo desde: {args.path}")
+
+
 # load model
-model = torch.load(args.path)
+#model = torch.load(args.path)
+model = torch.load(args.path, weights_only=False)
 
 n_prototypes = model.fc.linear.weight.size(1)
 
@@ -156,6 +161,7 @@ with open(config_file_path, "w") as config_file:
     config_file.write(f"Training Loss Function: {args.trainloss}\n")
     config_file.write(f"Adversarial Attack: {args.adversarialattack}\n")
     config_file.write(f"Adversarial Loss Function: {args.adversarialloss}\n")
+    config_file.write(f"Adversarial Type Attack: {args.typeattack}\n")
     config_file.write(f"Adversarial Iterations: {args.iters}\n")
     config_file.write(f"Adversarial Epsilon: {args.eps}\n")
     config_file.write(f"Adversarial Alpha: {args.alpha}\n")
@@ -196,8 +202,9 @@ for epoch in range(0, training_epochs):
             # generate adversarial batch
             optimizer.zero_grad()
             # loss_f = partial(adversarial_loss, model=model, batch_y=batch_y)
-            loss_f =  partial(Loss_1, model = model, alpha1=1, alpha2 = 0, objective = "cecc", force_class = None, change_expl = None)
-            
+            # Loss_1(model, batch_x, batch_y, alpha1, alpha2, force_class, change_expl, objective):
+            loss_f =  partial(adversarial_loss, model = model, batch_x=batch_x, batch_y=batch_y, alpha1=1, alpha2 = 0, objective = args.typeattack, force_class = None, change_expl = None)
+
             batch_x_adv = adversarial_attack(loss_f=loss_f, batch_x=batch_x)
             batch_x_adv = batch_x_adv.to('cpu')
             
@@ -273,7 +280,7 @@ for epoch in range(0, training_epochs):
             # generate adversarial batch
             optimizer.zero_grad()
             # loss_f = partial(adversarial_loss, model=model, batch_y=batch_y)
-            loss_f = partial(Loss_1, model = model, alpha1=1, alpha2 = 0, objective = "cecc", force_class = None, change_expl = None)
+            loss_f =  partial(adversarial_loss, model = model, batch_x=batch_x, batch_y=batch_y, alpha1=1, alpha2 = 0, objective = args.typeattack, force_class = None, change_expl = None)
 
             batch_x_adv = adversarial_attack(loss_f=loss_f, batch_x=batch_x)
             batch_x_adv = batch_x_adv.to(device)
