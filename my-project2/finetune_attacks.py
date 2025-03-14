@@ -176,8 +176,8 @@ with open(config_file_path, "w") as config_file:
 attacks = [
     torchattacks.DeepFool(model),
     torchattacks.EADEN(model),
-    torchattacks.Pixle(model),
-    torchattacks.SparseFool(model),
+    torchattacks.Pixle(model), # bastante ruidosa
+    torchattacks.SparseFool(model), # debería de descartar ya que las imágenes adeversariales son muy ruidosas
     torchattacks.EADL1(model)
 ]
 
