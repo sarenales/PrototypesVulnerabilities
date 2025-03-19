@@ -1,6 +1,7 @@
 # Security and robustness of prototype-based explanation methods, especially against adversarial attacks
 Master Final Thesis - Research into the security and robustness of prototype-based explanation methods within XAI.
 
+Autor: Silvia Arenales Muñoz
 ## Introduction
 
 In recent years, explainable artificial intelligence (XAI) has gained significant attention as a critical component for building trust and transparency in machine learning models. Among the various approaches to XAI, prototype-based explanation methods have emerged as a promising technique, offering intuitive and human-interpretable insights into model decisions. These methods rely on identifying representative prototypes within the dataset to explain the behavior of complex models, such as deep neural networks. However, as the adoption of these methods grows, so does the need to ensure their security and robustness, particularly in the face of adversarial attacks.
