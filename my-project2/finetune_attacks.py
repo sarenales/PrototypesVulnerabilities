@@ -41,7 +41,7 @@ if __name__ == '__main__':
     parser.add_argument("-alpha",  "--alpha",  dest="alpha",  type=float, default=0.01,  help="alpha value for adversarial attack")
     parser.add_argument("-rs", "--rs",  dest="randstart",  type=str, default="True",  help="random start for adversarial attack")
                         
-    parser.add_argument("-e",  "--e",  dest="epochs",  type=int, default=20,  help="training epochs")
+    parser.add_argument("-e",  "--e",  dest="epochs",  type=int, default=10,  help="training epochs")
     parser.add_argument("-lr",  "--lr",  dest="lr",  type=float, default=0.002,  help="learning rate")
     parser.add_argument("-bs",  "--bs",  dest="batchsize",  type=int, default=250,  help="batch size")
     
@@ -69,7 +69,7 @@ model = torch.load(args.path, map_location=torch.device('cpu'), weights_only=Fal
 n_prototypes = model.fc.linear.weight.size(1)
 
 # the directory to save the model
-name = f"mnist_cae_FT_attacks1_{n_prototypes}_{args.adversarialattack}_{args.adversarialloss}_{args.iters}_{args.eps}_{args.alpha}_{args.randstart}_{args.epochs}_{args.lr}_{args.batchsize}_{args.lambdac}_{args.lambdae}_{args.lambda1}_{args.lambda2}_{args.lambdaclus}_{args.lambdasep}_{args.seed}"
+name = f"mnist_cae_FT_attacks3_{n_prototypes}_{args.adversarialattack}_{args.adversarialloss}_{args.iters}_{args.eps}_{args.alpha}_{args.randstart}_{args.epochs}_{args.lr}_{args.batchsize}_{args.lambdac}_{args.lambdae}_{args.lambda1}_{args.lambda2}_{args.lambdaclus}_{args.lambdasep}_{args.seed}"
 model_folder = os.path.join(os.getcwd(), "saved_model", "mnist_model", name)
 makedirs(model_folder)
 img_folder = os.path.join(model_folder, "img")
@@ -77,8 +77,8 @@ makedirs(img_folder)
 
 #Save the configuration clearly
 
-model_filename = "mnist_cae_adv_Attacks1"
-optimizer_filename = "optimizer_cae_Attacks1"
+model_filename = "mnist_cae_adv_Attacks3"
+optimizer_filename = "optimizer_cae_Attacks3"
 
 # console_log is the handle to a text file that records the console output
 log_folder=os.path.join(model_folder, "log")
@@ -176,9 +176,9 @@ with open(config_file_path, "w") as config_file:
 attacks = [
     torchattacks.DeepFool(model),
     torchattacks.EADEN(model),
-    torchattacks.Pixle(model), # bastante ruidosa
-    torchattacks.SparseFool(model), # debería de descartar ya que las imágenes adeversariales son muy ruidosas
-    torchattacks.EADL1(model)
+    torchattacks.Pixle(model),
+    # torchattacks.SparseFool(model),
+    # torchattacks.EADL1(model)
 ]
 
 # optimizer setup
@@ -208,18 +208,20 @@ for epoch in range(0, training_epochs):
 
             #### Todos los ataques a la vez (costoso)
             # generate adversarial different batchs for each attacks
-            # adversarial_batches = []
-            # for attack in attacks:
-                # loss_f = partial(adversarial_loss, model=model, batch_y=batch_y)
-            #     batch_x_adv = attack(batch_x, batch_y)
-            #     adversarial_batches.append(batch_x_adv.to('cpu'))
+            adversarial_batches = []
+            for attack in attacks:
+                loss_f = partial(adversarial_loss, model=model, batch_y=batch_y)
+                batch_x_adv = attack(batch_x, batch_y)
+                adversarial_batches.append(batch_x_adv.to('cpu'))
 
             # combine the adversarial batches
-            # all_batches = [batch_x] + adversarial_batches
+            all_batches = [batch_x] + adversarial_batches
             
             #### Alternancia entre ataques
-            attack = attacks[i % len(attacks)]
-            batch_x_adv = attack(batch_x, batch_y)
+            # N = 3  # Cambiar de ataque cada 3 batches
+            # attack = attacks[(i) % len(attacks)]
+            # batch_x_adv = attack(batch_x, batch_y)
+
             
             
             # total_loss = 0.0
@@ -228,7 +230,7 @@ for epoch in range(0, training_epochs):
             # batch_x_adv = adversarial_attack(loss_f=loss_f, batch_x=batch_x)
             # batch_x_adv = batch_x_adv.to('cpu')
             
-            for idx, b_x in enumerate([batch_x_adv, batch_x]):
+            for idx, b_x in enumerate(all_batches):
                 
                 elastic_batch_x = b_x.to(device)
                 
