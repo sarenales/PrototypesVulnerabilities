@@ -41,7 +41,7 @@ def Loss_1(model, batch_x, batch_y, alpha1, alpha2, force_class, change_expl, ob
     
     if objective == "necc" and change_expl is not None:
         raise ValueError("If objective is necc, change_expl must be None")
-    if objective == "cenc" and force_class is None:
+    if objective == "cenc" and force_class is not None:
         raise ValueError("If objective is cenc, force_class must be None")
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Define the device
@@ -206,9 +206,46 @@ def generalLoss(model, batch_x, batch_y, pred_y, lambda_class, lambda_1, lambda_
     return train_te, train_ce, train_e1, train_e2, train_ae
 
 
+# Loss for the attack to the interpretability of the model 
+def D_x_y(h_x, y, prototypes_labels):
+    """
+    Calcula la distancia media a los prototipos correctos.
+    """
+    mask = prototypes_labels == y
+    if np.sum(mask) == 0:
+        return 0.0
+    d = np.sqrt(np.sum(h_x[mask] ** 2) / np.sum(mask))
+    return d
+
+def R_x_y(h_x, y, prototypes_labels):
+    """
+    Calcula la distancia media a los prototipos incorrectos.
+    """
+    mask = prototypes_labels != y
+    if np.sum(mask) == 0:
+        return 0.0
+    r = np.sqrt(np.sum(h_x[mask] ** 2) / np.sum(mask))
+    return r
+
+def interpretability_loss(h_x, y, prototypes_labels, lambda_):
+    """
+    L_h(x, y) = D(x, y) - lambda * R(x, y)
+    """
+    D = D_x_y(h_x, y, prototypes_labels)
+    R = R_x_y(h_x, y, prototypes_labels)
+    return D - lambda_ * R
+
     
     
-    
-    
+def adversarial_expl_loss(h_x_star, f_x_star, y, prototypes_labels, lambda_, xi, alpha, classification_loss_fn):
+    """
+    L_total = L_h(x*, y) - xi * L_y(f(x*), y) - alpha * ||h(x*)||^2
+    """
+    Lh = interpretability_loss(h_x_star, y, prototypes_labels, lambda_)
+    Ly = classification_loss_fn(f_x_star, y)  # Por ejemplo: nn.CrossEntropyLoss()(output, label)
+    reg = torch.norm(h_x_star, p=2)
+
+    return Lh - xi * Ly - alpha * reg
+
     
     
