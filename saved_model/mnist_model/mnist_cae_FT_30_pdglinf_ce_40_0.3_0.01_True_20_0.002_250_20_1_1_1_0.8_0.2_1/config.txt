@@ -1,0 +1,18 @@
+Finetune Configuration:
+Model: /Users/silviaarenalesmunoz/Desktop/MASTER/TFM/Iras TFG/PrototypeDNN-Robustness-main/saved_model/mnist_model/mnist_cae_standard_default_1500_0.002_250_False_0.5_20_1_1_1_0.8_0.2_30_4_32_1/mnist_cae00750.pth
+Training Loss Function: clstsep
+Adversarial Attack: pdglinf
+Adversarial Loss Function: ce
+Adversarial Iterations: 40
+Adversarial Epsilon: 0.3
+Adversarial Alpha: 0.01
+Epochs: 20
+Learning Rate: 0.002
+Batch Size: 250
+Lambda Class Hyperparameter: 20
+Lambda Encoder Hyperparameter: 1
+Lambda 1 Hyperparameter: 1
+Lambda 2 Hyperparameter: 1
+Lambda Clustering Hyperparameter: 0.8
+Lambda Separation Hyperparameter: 0.2
+Random Seed: 1

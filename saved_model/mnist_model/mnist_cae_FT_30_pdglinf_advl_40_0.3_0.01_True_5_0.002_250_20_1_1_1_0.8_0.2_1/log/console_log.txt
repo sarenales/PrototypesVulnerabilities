@@ -1,0 +1,25 @@
+################################################################################
+Epoch: 0001
+training set errors:	classification error: 0.017159	autoencoder error: 0.045654	error_1: 0.027622	error_2: 0.063212	total error: 0.479666	accuracy: 0.995313	adv accuracy: 0.999688
+training takes 335.86 seconds.
+################################################################################
+Epoch: 0002
+training set errors:	classification error: 0.014897	autoencoder error: 0.044595	error_1: 0.027752	error_2: 0.072549	total error: 0.442844	accuracy: 0.997042	adv accuracy: 0.999792
+training takes 364.59 seconds.
+validation set errors:	 classification error: 0.008731	autoencoder error: 0.044234	error_1: 0.021557	error_2: 0.064056	total error: 0.304465	accuracy: 0.990417	adv accuracy 0.999750
+################################################################################
+Epoch: 0003
+training set errors:	classification error: 0.000552	autoencoder error: 0.044751	error_1: 0.029605	error_2: 0.062994	total error: 0.148391	accuracy: 0.997730	adv accuracy: 0.999896
+training takes 403.81 seconds.
+################################################################################
+Epoch: 0004
+training set errors:	classification error: 0.003849	autoencoder error: 0.044669	error_1: 0.027922	error_2: 0.077025	total error: 0.226604	accuracy: 0.998251	adv accuracy: 0.999938
+training takes 399.40 seconds.
+validation set errors:	 classification error: 0.014993	autoencoder error: 0.046224	error_1: 0.029419	error_2: 0.073249	total error: 0.448752	accuracy: 0.989417	adv accuracy 0.999917
+################################################################################
+Epoch: 0005
+training set errors:	classification error: 0.003236	autoencoder error: 0.045969	error_1: 0.031483	error_2: 0.073785	total error: 0.215955	accuracy: 0.998334	adv accuracy: 0.999833
+training takes 395.48 seconds.
+validation set errors:	 classification error: 0.009938	autoencoder error: 0.046037	error_1: 0.031169	error_2: 0.070329	total error: 0.346288	accuracy: 0.989667	adv accuracy 0.999750
+Total taken time 2182.23 seconds.
+Optimization Finished!
