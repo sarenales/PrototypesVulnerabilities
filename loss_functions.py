@@ -63,15 +63,17 @@ def Loss_1(model, batch_x, batch_y, alpha1, alpha2, force_class, change_expl, ob
     
     dists_loss = torch.sum(torch.matmul(ms, list_of_distances(prototype_distances, feature_vectors.view(-1, model.in_channels_prototype)))) # Weighted prototype distance loss
     
+    # CHANGE explanation BUT KEEP prediction the same
     if objective == "cenc": 
         loss += -1 * alpha1 * loss_function(pred_y, batch_y)
-        
+        # penalize being too close to original prototypes (encourage explanation change)
         if change_expl is None:
             loss += alpha2 * dists_loss
-            
+        # reward if explanation already changed    
         elif change_expl is not None:
             loss += -1 * alpha2 * dists_loss
-        
+
+    # CHANGE explanation AND CHANGE prediction
     elif objective == "cecc":
         
         if force_class is None:
@@ -81,12 +83,15 @@ def Loss_1(model, batch_x, batch_y, alpha1, alpha2, force_class, change_expl, ob
             y_target = torch.full_like(batch_y, force_class)
             loss += -1 * alpha1 * loss_function(pred_y, y_target)	
         
+        # penalize being too close to original prototypes (encourage explanation change)
         if change_expl is None:
             loss += alpha2 * dists_loss
             
+        # reward if explanation already changed
         elif change_expl is not None:
             loss += -1 * alpha2 * dists_loss
       
+    # KEEP explanation AND CHANGE prediction
     elif objective == "necc":
         
         if force_class is None:
