@@ -1,6 +1,8 @@
 import torch
 import numpy as np
+import torch.nn.functional as F
 from autoencoder_helpers import *
+
 
 def get_ms(prototype_classes, batch_y, change_expl=None):
     examples_classes = batch_y.cpu().detach().numpy()
@@ -212,45 +214,41 @@ def generalLoss(model, batch_x, batch_y, pred_y, lambda_class, lambda_1, lambda_
 
 
 # Loss for the attack to the interpretability of the model 
-def D_x_y(h_x, y, prototypes_labels):
+def D_h(x_exp, y, Y_labels):
     """
-    Calcula la distancia media a los prototipos correctos.
+    D(x, y): relevance of explanation for the correct class.
+    - x_exp: explanation vector h(x), shape [num_features]
+    - y: target class (int)
+    - Y_labels: list or tensor of all true labels (dataset-wise)
     """
-    mask = prototypes_labels == y
-    if np.sum(mask) == 0:
-        return 0.0
-    d = np.sqrt(np.sum(h_x[mask] ** 2) / np.sum(mask))
-    return d
+    mask = (Y_labels == y)
+    numerator = torch.sum(x_exp[mask] ** 2)
+    denominator = torch.sum(mask)
+    return torch.sqrt(numerator / denominator)
 
-def R_x_y(h_x, y, prototypes_labels):
+def R_h(x_exp, y, Y_labels):
     """
-    Calcula la distancia media a los prototipos incorrectos.
+    R(x, y): relevance of explanation for the incorrect classes.
     """
-    mask = prototypes_labels != y
-    if np.sum(mask) == 0:
-        return 0.0
-    r = np.sqrt(np.sum(h_x[mask] ** 2) / np.sum(mask))
-    return r
+    mask = (Y_labels != y)
+    numerator = torch.sum(x_exp[mask] ** 2)
+    denominator = torch.sum(mask)
+    return torch.sqrt(numerator / denominator)
 
-def interpretability_loss(h_x, y, prototypes_labels, lambda_):
+def L_h(x_exp, y, Y_labels, lam=1.0):
     """
-    L_h(x, y) = D(x, y) - lambda * R(x, y)
+    Full explanation loss: L_h = D - λ R
     """
-    D = D_x_y(h_x, y, prototypes_labels)
-    R = R_x_y(h_x, y, prototypes_labels)
-    return D - lambda_ * R
+    D_val = D_h(x_exp, y, Y_labels)
+    R_val = R_h(x_exp, y, Y_labels)
+    return D_val - lam * R_val
 
+def Loss_change_interpretability(model, batch_x, batch_y, Y_labels, alpha1, alpha2, force_class=None):
+    """
+    Loss function for the attack to the interpretability of the model.
+    """
+    pred_y = model.forward(batch_x)
     
-    
-def adversarial_expl_loss(h_x_adv, f_x_adv, y, prototypes_labels, lambda_, xi, alpha, classification_loss_fn):
-    """
-    L_total = L_h(x*, y) - xi * L_y(f(x*), y) - alpha * ||h(x*)||^2
-    """
-    Lh = interpretability_loss(h_x_adv, y, prototypes_labels, lambda_)
-    Ly = classification_loss_fn(f_x_adv, y) 
-    reg = torch.norm(h_x_adv, p=2)
-
-    return Lh - xi * Ly - alpha * reg
-
+    loss_function = torch.nn.CrossEntropyLoss() # Cross-entropy loss
     
     
