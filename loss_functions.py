@@ -317,9 +317,9 @@ def generalLoss(model, batch_x, batch_y, pred_y, lambda_class, lambda_1, lambda_
     
     return train_te, train_ce, train_e1, train_e2, train_ae
 
-
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Loss for the attack to the interpretability of the model 
-# - - - - - - - - - - - - - - -  - - - - - 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def compute_prototype_distances(x, prototype_layer):
     """
     Compute distances between input x and all prototypes in latent space
