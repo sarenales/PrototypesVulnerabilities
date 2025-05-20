@@ -544,6 +544,9 @@ def test_adversarial(model, test_loader, loss, attack, n_examples, examples_type
     print("\tIncorrectly classified and the closest prototype is the same: {:.4f}".format(incorr_same_proto))
     print("\tIncorrectly classified and the closest prototype is different: {:.4f}".format(incorr_dist_proto))
 
+
+
+
 def get_encoded_test_data_and_fit_pca(test_loader, model, device):
     """
     Encodes test data using the model's encoder and fits a PCA transformation on the encoded data.
@@ -560,7 +563,7 @@ def get_encoded_test_data_and_fit_pca(test_loader, model, device):
     """
     encoded_data = []
     labels = []
-    
+
     # Encode the test data
     for batch in test_loader:
         batch_x, batch_y = batch
@@ -568,17 +571,17 @@ def get_encoded_test_data_and_fit_pca(test_loader, model, device):
         encoded_batch = model.encoder(batch_x).detach().cpu().numpy().reshape(batch_x.size(0), -1)
         encoded_data.append(encoded_batch)
         labels.append(batch_y.numpy())
-    
+
     encoded_data = np.concatenate(encoded_data, axis=0)
     labels = np.concatenate(labels, axis=0)
-    
+
     # Fit PCA on the encoded data
     pca = PCA(n_components=2)
     reduced_test_data = pca.fit_transform(encoded_data)
-    
+
     return reduced_test_data, labels, pca
 
-def get_prototype_projection(model_path, device, pca):
+def get_prototype_projection(model, pca):
     """
     Projects the prototypes of the model into a 2D PCA space.
 
@@ -591,17 +594,17 @@ def get_prototype_projection(model_path, device, pca):
     - reduced_prototypes (np.ndarray): 2D PCA projection of the prototypes.
     - prototype_imgs (torch.Tensor): Decoded prototype images.
     """
-    model = torch.load(model_path)
-    model.to(device)
-    model.prototype_layer.prototype_distances = model.prototype_layer.prototype_distances.to(device)
+    #model = torch.load(model_path, weights_only=False)
+    #model.to(device)
+    model.prototype_layer.prototype_distances = model.prototype_layer.prototype_distances
     model.eval()
-    
+
     prototype_distances = model.prototype_layer.prototype_distances
     prototype_imgs = model.decoder(prototype_distances.reshape((-1, 10, 2, 2))).detach().cpu()
-    
+
     # Project prototypes using the fitted PCA
     reduced_prototypes = pca.transform(prototype_distances.detach().cpu().numpy().reshape(-1, 40))
-    
+
     return reduced_prototypes, prototype_imgs
 
 def plot_prototype_projection_with_data(reduced_prototypes, prototype_imgs, reduced_test_data, test_labels, title, xlim, ylim, save_path):
@@ -622,25 +625,30 @@ def plot_prototype_projection_with_data(reduced_prototypes, prototype_imgs, redu
     ax.set_title(title)
     ax.set_xlabel('Principal Component 1')
     ax.set_ylabel('Principal Component 2')
-    
+
     image_size = 0.2  # Adjust this value to make images smaller
-    
+
     # Plot the encoded test data with different colors for each class using 'tab20' colormap
     scatter = ax.scatter(reduced_test_data[:, 0], reduced_test_data[:, 1], c=test_labels, cmap='tab20', alpha=0.5)
     legend = ax.legend(*scatter.legend_elements(), title="Classes")
     ax.add_artist(legend)
-    
+
     # Overlay prototype images
     for i, (x, y) in enumerate(reduced_prototypes):
         img = prototype_imgs[i].squeeze().numpy()  # Remove single-dimensional entries
         ax.imshow(img, cmap='gray', extent=(x - image_size / 2, x + image_size / 2, y - image_size / 2, y + image_size / 2), aspect='auto', zorder=10)
         ax.scatter(x, y, c='red', s=1, zorder=11)
-    
+
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    
-    plt.savefig(save_path, bbox_inches='tight')
-    plt.close(fig)
+
+    # plt.savefig(save_path, bbox_inches='tight')
+    #plt.close(fig)
+    plt.show()
+
+
+
+
 
 def test_adversarial_2(model, test_loader, loss, attack, n_examples, examples_type):
     """
