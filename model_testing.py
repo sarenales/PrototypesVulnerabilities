@@ -6,6 +6,7 @@ from modules import Softmax
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from sklearn.decomposition import PCA
+from sklearn.metrics import confusion_matrix
 
 softmax = Softmax()
 
@@ -400,217 +401,36 @@ def test_model(model, test_loader):
 
     print("test set accuracy: {:.4f}".format(test_ac))
 
-def test_adversarial(model, test_loader, loss, attack, n_examples, examples_type):
+def draw_confusion_matrix(cm, categories):
     """
-    Test the model's performance on adversarial examples.
-
+    Draw a confusion matrix for adversarial examples.
+    
     Args:
-        model (torch.nn.Module): The trained model.
-        test_loader (torch.utils.data.DataLoader): The data loader for the test dataset.
-        loss (callable): The loss function used for training the model.
-        attack (callable): The attack function used to generate adversarial examples.
-        n_examples (int): The maximum number of adversarial examples to show.
-        examples_type (str): The type of adversarial examples to show. Can be one of the following:
-            - "cdp": Correctly classified and the closest prototype is different.
-            - "csp": Correctly classified and the closest prototype is the same.
-            - "isp": Incorrectly classified and the closest prototype is the same.
-            - "idp": Incorrectly classified and the closest prototype is different.
+        cm (numpy.ndarray): The confusion matrix
+        categories (dict): Dictionary mapping class indices to class names
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Define the device
-    test_ac = 0
-    test_ac_adv = 0
-    n_test_batch = len(test_loader)
-
-    corr_dist_proto = 0
-    corr_same_proto = 0
-    incorr_same_proto = 0
-    incorr_dist_proto = 0
-
-
-    prototype_distances = model.prototype_layer.prototype_distances
-    prototype_imgs = model.decoder(prototype_distances.reshape((-1,10,2,2))).detach().cpu()
-    total_examples = 0
-
-    for i, batch in enumerate(test_loader):
-        batch_x = batch[0]
-        batch_y = batch[1]
-        batch_x = batch_x.to(device)
-        batch_x.requires_grad = True
-        batch_y = batch_y.to(device)
-
-        pred_y = model.forward(batch_x)
-        pred_y = softmax(pred_y)
-
-        loss_f = partial(loss, batch_y=batch_y)
-        adv_attack = partial(attack, loss_f=loss_f)
-
-        perturbed_batch_x = adv_attack(batch_x)
-
-        pred_y_adv = model.forward(perturbed_batch_x)
-        pred_y_adv = softmax(pred_y_adv)
-
-        # test accuracy
-        conf_y, max_indices = torch.max(pred_y,1)
-        n = max_indices.size(0)
-        test_ac += (max_indices == batch_y).sum(dtype=torch.float32)/n
-
-        #adversarial test accuracy
-        conf_y_adv, max_indices_adv = torch.max(pred_y_adv,1)
-        n = max_indices_adv.size(0)
-        test_ac_adv += (max_indices_adv == batch_y).sum(dtype=torch.float32)/n
-
-        total_examples += show_adversarial_examples(model, batch_x, perturbed_batch_x, batch_y, max_indices, max_indices_adv, conf_y, conf_y_adv, n_examples-total_examples, examples_type)
-
-        # Distances for normal and adversarial examples 
-        distances = model.prototype_layer(model.encoder(batch_x).view(batch_x.size(0), -1))  
-        distances_adv = model.prototype_layer(model.encoder(perturbed_batch_x).view(perturbed_batch_x.size(0), -1)) 
-
-        for idx in range(batch_x.size(0)): 
-
-            dists = distances[idx].detach().cpu().numpy()  
-            dists_adv = distances_adv[idx].detach().cpu().numpy()  
-
-            # Sort prototypes by distances
-            sorted_prototypes = sorted(zip(prototype_imgs, dists), key=lambda x: x[1])
-            sorted_prototype_imgs, sorted_dists = zip(*sorted_prototypes)
-
-            # Sort prototypes by distances for adversarial examples
-            sorted_prototypes_adv = sorted(zip(prototype_imgs, dists_adv), key=lambda x: x[1])
-            sorted_prototype_imgs_adv, sorted_dists_adv = zip(*sorted_prototypes_adv)
-
-            # If correctly classified and the closest prototype is different
-            if batch_y[idx] == max_indices_adv[idx] and not torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
-                corr_dist_proto += 1/n
-
-            # If incorrectly classified and the closest prototype is the same
-            elif batch_y[idx] != max_indices_adv[idx] and torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
-                incorr_same_proto += 1/n
-
-            # If correctly classified and the closest prototype is the same
-            elif batch_y[idx] == max_indices_adv[idx] and torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
-                corr_same_proto += 1/n
-
-            #If incorrectly classified and the closest prototype is different
-            elif batch_y[idx] != max_indices_adv[idx] and not torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
-                incorr_dist_proto += 1/n
-
-    test_ac /= n_test_batch
-    test_ac_adv /= n_test_batch
-    corr_dist_proto /= n_test_batch 
-    corr_same_proto /= n_test_batch
-    incorr_same_proto /= n_test_batch
-    incorr_dist_proto /= n_test_batch
-
-    print("test set:")
-    print("\taccuracy: {:.4f}".format(test_ac))
-
-    print("adversarial test set:")
-    print("\taccuracy: {:.4f}".format(test_ac_adv))
-    print("\tCorrectly classified and the closest prototype is different: {:.4f}".format(corr_dist_proto))
-    print("\tCorrectly classified and the closest prototype is the same: {:.4f}".format(corr_same_proto))
-    print("\tIncorrectly classified and the closest prototype is the same: {:.4f}".format(incorr_same_proto))
-    print("\tIncorrectly classified and the closest prototype is different: {:.4f}".format(incorr_dist_proto))
+    fig = plt.figure(figsize=[6.4*pow(len(categories), 0.5), 4.8*pow(len(categories), 0.5)])
+    ax = fig.add_subplot(111)
+    cm = cm.astype('float') / np.maximum(cm.sum(axis=1)[:, np.newaxis], np.finfo(np.float64).eps)
+    im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.get_cmap('Blues'))
+    ax.figure.colorbar(im, ax=ax)
+    ax.set(xticks=np.arange(cm.shape[1]), 
+           yticks=np.arange(cm.shape[0]), 
+           xticklabels=list(categories.values()), 
+           yticklabels=list(categories.values()), 
+           ylabel='True Label', 
+           xlabel='Predicted Label')
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
     
-def get_encoded_test_data_and_fit_pca(test_loader, model, device):
-    """
-    Encodes test data using the model's encoder and fits a PCA transformation on the encoded data.
-
-    Args:
-    - test_loader (DataLoader): DataLoader for the test dataset.
-    - model (nn.Module): The model containing the encoder.
-    - device (torch.device): The device to run the model on (CPU or GPU).
-
-    Returns:
-    - reduced_test_data (np.ndarray): 2D PCA projection of the encoded test data.
-    - labels (np.ndarray): Labels of the test data.
-    - pca (PCA): Fitted PCA object.
-    """
-    encoded_data = []
-    labels = []
-    
-    # Encode the test data
-    for batch in test_loader:
-        batch_x, batch_y = batch
-        batch_x = batch_x.to(device)
-        encoded_batch = model.encoder(batch_x).detach().cpu().numpy().reshape(batch_x.size(0), -1)
-        encoded_data.append(encoded_batch)
-        labels.append(batch_y.numpy())
-    
-    encoded_data = np.concatenate(encoded_data, axis=0)
-    labels = np.concatenate(labels, axis=0)
-    
-    # Fit PCA on the encoded data
-    pca = PCA(n_components=2)
-    reduced_test_data = pca.fit_transform(encoded_data)
-    
-    return reduced_test_data, labels, pca
-
-def get_prototype_projection(model, pca):
-    """
-    Projects the prototypes of the model into a 2D PCA space.
-
-    Args:
-    - model_path (str): Path to the model file.
-    - device (torch.device): The device to run the model on (CPU or GPU).
-    - pca (PCA): Fitted PCA object.
-
-    Returns:
-    - reduced_prototypes (np.ndarray): 2D PCA projection of the prototypes.
-    - prototype_imgs (torch.Tensor): Decoded prototype images.
-    """
-    #model = torch.load(model_path, weights_only=False)
-    #model.to(device)
-    model.prototype_layer.prototype_distances = model.prototype_layer.prototype_distances
-    model.eval()
-    
-    prototype_distances = model.prototype_layer.prototype_distances
-    prototype_imgs = model.decoder(prototype_distances.reshape((-1, 10, 2, 2))).detach().cpu()
-    
-    # Project prototypes using the fitted PCA
-    reduced_prototypes = pca.transform(prototype_distances.detach().cpu().numpy().reshape(-1, 40))
-    
-    return reduced_prototypes, prototype_imgs
-
-def plot_prototype_projection_with_data(reduced_prototypes, prototype_imgs, reduced_test_data, test_labels, title, xlim, ylim, save_path):
-    """
-    Plots the 2D PCA projection of prototypes and test data.
-
-    Args:
-    - reduced_prototypes (np.ndarray): 2D PCA projection of the prototypes.
-    - prototype_imgs (torch.Tensor): Decoded prototype images.
-    - reduced_test_data (np.ndarray): 2D PCA projection of the test data.
-    - test_labels (np.ndarray): Labels of the test data.
-    - title (str): Title of the plot.
-    - xlim (tuple): x-axis limits for the plot.
-    - ylim (tuple): y-axis limits for the plot.
-    - save_path (str): Path to save the plot.
-    """
-    fig, ax = plt.subplots(figsize=(10, 8), dpi=300)
-    ax.set_title(title)
-    ax.set_xlabel('Principal Component 1')
-    ax.set_ylabel('Principal Component 2')
-    
-    image_size = 0.2  # Adjust this value to make images smaller
-    
-    # Plot the encoded test data with different colors for each class using 'tab20' colormap
-    scatter = ax.scatter(reduced_test_data[:, 0], reduced_test_data[:, 1], c=test_labels, cmap='tab20', alpha=0.5)
-    legend = ax.legend(*scatter.legend_elements(), title="Classes")
-    ax.add_artist(legend)
-    
-    # Overlay prototype images
-    for i, (x, y) in enumerate(reduced_prototypes):
-        img = prototype_imgs[i].squeeze().numpy()  # Remove single-dimensional entries
-        ax.imshow(img, cmap='gray', extent=(x - image_size / 2, x + image_size / 2, y - image_size / 2, y + image_size / 2), aspect='auto', zorder=10)
-        ax.scatter(x, y, c='red', s=1, zorder=11)
-    
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    
-    # plt.savefig(save_path, bbox_inches='tight')
-    #plt.close(fig)
+    thresh = cm.max() / 2.0
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], '.2f'), 
+                   ha="center", va="center", 
+                   color="white" if cm[i, j] > thresh else "black", 
+                   fontsize=int(20-pow(len(categories), 0.5)))
+    fig.tight_layout()
     plt.show()
-
-
 
 def test_adversarial_2(model, test_loader, loss, attack, n_examples, examples_type):
     """
@@ -622,13 +442,9 @@ def test_adversarial_2(model, test_loader, loss, attack, n_examples, examples_ty
         loss (callable): The loss function used for training the model.
         attack (callable): The attack function used to generate adversarial examples.
         n_examples (int): The maximum number of adversarial examples to show.
-        examples_type (str): The type of adversarial examples to show. Can be one of the following:
-            - "cdp": Correctly classified and the closest prototype is different.
-            - "csp": Correctly classified and the closest prototype is the same.
-            - "isp": Incorrectly classified and the closest prototype is the same.
-            - "idp": Incorrectly classified and the closest prototype is different.
+        examples_type (str): The type of adversarial examples to show.
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Define the device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     test_ac = 0
     test_ac_adv = 0
     n_test_batch = len(test_loader)
@@ -646,6 +462,11 @@ def test_adversarial_2(model, test_loader, loss, attack, n_examples, examples_ty
     correct_clean = 0
     correct_adv = 0
     total = 0
+
+    # Lists to store predictions for confusion matrix
+    all_true_labels = []
+    all_clean_preds = []
+    all_adv_preds = []
 
     # Visualization setup
     plt.figure(figsize=(15, 5))
@@ -689,6 +510,11 @@ def test_adversarial_2(model, test_loader, loss, attack, n_examples, examples_ty
         correct_adv += (max_indices_adv == batch_y).sum().item()
         
         total += batch_y.size(0)
+
+        # Store predictions for confusion matrix
+        all_true_labels.extend(batch_y.cpu().numpy())
+        all_clean_preds.extend(max_indices.cpu().numpy())
+        all_adv_preds.extend(max_indices_adv.cpu().numpy())
 
         # Visualize results for first batch
         if i == 0:
@@ -755,12 +581,16 @@ def test_adversarial_2(model, test_loader, loss, attack, n_examples, examples_ty
             elif batch_y[idx] != max_indices_adv[idx] and not torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
                 incorr_dist_proto += 1/n
 
-    test_ac /= n_test_batch
-    test_ac_adv /= n_test_batch
-    corr_dist_proto /= n_test_batch 
-    corr_same_proto /= n_test_batch
-    incorr_same_proto /= n_test_batch
-    incorr_dist_proto /= n_test_batch
+    # Create confusion matrices
+    categories = {i: str(i) for i in range(10)}  # Assuming 10 classes, modify if different
+    cm_clean = confusion_matrix(all_true_labels, all_clean_preds, labels=list(categories.keys()))
+    cm_adv = confusion_matrix(all_true_labels, all_adv_preds, labels=list(categories.keys()))
+
+    # Draw confusion matrices
+    print("\nConfusion Matrix for Clean Examples:")
+    draw_confusion_matrix(cm_clean, categories)
+    print("\nConfusion Matrix for Adversarial Examples:")
+    draw_confusion_matrix(cm_adv, categories)
 
     # Calculate final metrics
     clean_acc = 100 * correct_clean / total
