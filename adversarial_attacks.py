@@ -229,3 +229,97 @@ def deepfool_attack(batch_x, loss_f, steps=50, overshoot=0.02):
     
     return adv_images
 
+def EADEN_attack(batch_x, loss_f, kappa=0, lr=0.01, binary_search_steps=9, max_iterations=100, abort_early=True, initial_const=0.001, beta=0.001):
+    """
+    Implements the EAD (Elastic-Net) attack as described in 'EAD: Elastic-Net Attacks to Deep Neural Networks'.
+    
+    Args:
+        batch_x (torch.Tensor): Input images of shape (N, C, H, W), values in range [0,1].
+        loss_f (callable): The loss function used to compute the loss.
+        kappa (float): Confidence parameter for the attack. Default: 0.
+        lr (float): Learning rate for gradient descent. Default: 0.01.
+        binary_search_steps (int): Number of binary search steps. Default: 9.
+        max_iterations (int): Maximum number of iterations. Default: 100.
+        abort_early (bool): Whether to abort early if not improving. Default: True.
+        initial_const (float): Initial constant for binary search. Default: 0.001.
+        beta (float): Trade-off parameter between L1 and L2. Default: 0.001.
+
+    Returns:
+        torch.Tensor: The perturbed batch of images.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    batch_x = batch_x.clone().detach().to(device)
+    batch_size = len(batch_x)
+    
+    # Initialize variables for binary search
+    lower_bound = torch.zeros(batch_size, device=device)
+    const = torch.ones(batch_size, device=device) * initial_const
+    upper_bound = torch.ones(batch_size, device=device) * 1e10
+    
+    # Initialize adversarial images
+    final_adv_images = batch_x.clone()
+    best_l1 = torch.ones(batch_size, device=device) * 1e10
+    best_score = torch.ones(batch_size, device=device) * -1
+    
+    # Initialization for FISTA
+    x_k = batch_x.clone()
+    y_k = batch_x.clone()
+    
+    for outer_step in range(binary_search_steps):
+        prev_loss = 1e6
+        current_lr = lr
+        
+        for iteration in range(max_iterations):
+            y_k.requires_grad_(True)
+            
+            # Forward pass
+            loss = loss_f(batch_x=y_k)
+            
+            # Add L2 regularization
+            l2_loss = torch.norm((y_k - batch_x).view(batch_size, -1), p=2, dim=1).mean()
+            total_loss = loss + const.mean() * l2_loss
+            
+            # Backward pass
+            total_loss.backward()
+            
+            # Gradient step
+            with torch.no_grad():
+                grad = y_k.grad.clone()
+                y_k = y_k - current_lr * grad
+                y_k = torch.clamp(y_k, min=0, max=1)
+            
+            # FISTA update
+            t = (iteration + 1) / (iteration + 3)
+            x_k_new = y_k
+            y_k = x_k_new + t * (x_k_new - x_k)
+            x_k = x_k_new
+            
+            # Update learning rate
+            current_lr = lr * (1 - iteration / max_iterations) ** 0.5
+            
+            # Early stopping
+            if abort_early and iteration % (max_iterations // 10) == 0:
+                if total_loss > prev_loss * 0.999999:
+                    break
+                prev_loss = total_loss
+            
+            # Update best results
+            with torch.no_grad():
+                current_l1 = torch.norm((x_k - batch_x).view(batch_size, -1), p=1, dim=1)
+                mask = (current_l1 < best_l1)
+                best_l1[mask] = current_l1[mask]
+                final_adv_images[mask] = x_k[mask]
+        
+        # Binary search update
+        with torch.no_grad():
+            mask = (best_score == -1)
+            upper_bound[mask] = torch.min(upper_bound[mask], const[mask])
+            lower_bound[~mask] = torch.max(lower_bound[~mask], const[~mask])
+            
+            mask = upper_bound < 1e9
+            const[mask] = (lower_bound[mask] + upper_bound[mask]) / 2
+            const[~mask] = const[~mask] * 10
+    
+    return final_adv_images
+
