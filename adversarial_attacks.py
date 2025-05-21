@@ -190,3 +190,42 @@ def sinifgsm(model, images, labels, eps=8/255, alpha=2/255, steps=10, decay=1.0,
 
     return adv_images
 
+def deepfool_attack(batch_x, loss_f, steps=50, overshoot=0.02):
+    """
+    Implements the DeepFool attack as described in 'DeepFool: A Simple and Accurate Method to Fool Deep Neural Networks'.
+    
+    Args:
+        batch_x (torch.Tensor): Input images of shape (N, C, H, W), values in range [0,1].
+        loss_f (callable): The loss function used to compute the loss.
+        steps (int): Maximum number of iterations. Default: 50.
+        overshoot (float): Parameter for enhancing the noise. Default: 0.02.
+
+    Returns:
+        torch.Tensor: The perturbed batch of images.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    batch_x = batch_x.clone().detach().to(device)
+    adv_images = batch_x.clone().detach()
+    
+    for _ in range(steps):
+        adv_images.requires_grad = True
+        loss = loss_f(batch_x=adv_images)
+        
+        if adv_images.grad is not None:
+            adv_images.grad.zero_()
+        loss.backward(retain_graph=True)
+        
+        grad = adv_images.grad.clone().detach()
+        
+        # Calculate perturbation for the entire batch
+        grad_norm = torch.norm(grad.view(grad.size(0), -1), p=2, dim=1)
+        grad_norm = grad_norm.view(-1, 1, 1, 1)
+        delta = grad / (grad_norm + 1e-8)
+        
+        # Update adversarial images
+        adv_images = adv_images + (1 + overshoot) * delta
+        adv_images = torch.clamp(adv_images, min=0, max=1).detach()
+    
+    return adv_images
+
