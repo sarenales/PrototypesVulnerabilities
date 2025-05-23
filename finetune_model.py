@@ -3,7 +3,7 @@ print('pytorch version ', torch.__version__)
 
 from data_preprocessing import batch_elastic_transform
 from data_loader import get_train_val_loader, get_test_loader
-from loss_functions import generalLoss, ClstSepLoss, CELoss #, Loss_1
+from loss_functions import generalLoss, ClstSepLoss, CELoss, Loss_1 
 from adversarial_attacks import FSGM_attack, PGDLInf_attack, PGDL2_attack
 from modules import *
 from autoencoder_helpers import *
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     
     parser.add_argument("-tl",  "--tl",  dest="trainloss",  type=str, default="clstsep",  help="loss function to train the model")
     parser.add_argument("-advatt",  "--advatt",  dest="adversarialattack",  type=str, default="pdglinf",  help="adversarial attack to use")
-    parser.add_argument("-advl",  "--advl",  dest="adversarialloss",  type=str, default="ce",  help="loss function to generate adv examples")
+    parser.add_argument("-advl",  "--advl",  dest="adversarialloss",  type=str, default="advl",  help="loss function to generate adv examples")
     parser.add_argument("-eps",  "--eps",  dest="eps",  type=float, default=0.3,  help="epsilon value for adversarial attack")
     parser.add_argument("-iters",  "--iters",  dest="iters",  type=int, default=40,  help="number of iterations for adversarial attack")
     parser.add_argument("-alpha",  "--alpha",  dest="alpha",  type=float, default=0.01,  help="alpha value for adversarial attack")
@@ -148,9 +148,8 @@ elif args.adversarialattack == "pdgl2":
 #adversarial loss
 if args.adversarialloss == "ce":
     adversarial_loss = CELoss
-#if args.adversarialloss == 'advl':
-    #adversarial_loss = Loss_1
-    # partial(Loss_1, model = model1, alpha1=1, alpha2 = 0, objective = "cecc", force_class = None, change_expl = None)
+elif args.adversarialloss == "advl":
+    adversarial_loss = partial(Loss_1, alpha1=0, alpha2=1, objective="advl", force_class=None, change_expl=None)
 
 start_time= time.time()
 

@@ -3,7 +3,7 @@ print('pytorch version ', torch.__version__)
 
 from data_preprocessing import batch_elastic_transform
 from data_loader import get_train_val_loader, get_test_loader
-from loss_functions import generalLoss, ClstSepLoss, CELoss #, Loss_1
+from loss_functions import generalLoss, ClstSepLoss, CELoss , Loss_1
 from adversarial_attacks import FSGM_attack, PGDLInf_attack, PGDL2_attack
 from modules import *
 from autoencoder_helpers import *
@@ -69,7 +69,7 @@ model = torch.load(args.path, map_location=torch.device('cpu'), weights_only=Fal
 n_prototypes = model.fc.linear.weight.size(1)
 
 # the directory to save the model
-name = f"mnist_cae_FT_attacks3_{n_prototypes}_{args.adversarialattack}_{args.adversarialloss}_{args.iters}_{args.eps}_{args.alpha}_{args.randstart}_{args.epochs}_{args.lr}_{args.batchsize}_{args.lambdac}_{args.lambdae}_{args.lambda1}_{args.lambda2}_{args.lambdaclus}_{args.lambdasep}_{args.seed}"
+name = f"mnist_adv_Attacks_interpretability{n_prototypes}_{args.adversarialattack}_{args.adversarialloss}_{args.iters}_{args.eps}_{args.alpha}_{args.randstart}_{args.epochs}_{args.lr}_{args.batchsize}_{args.lambdac}_{args.lambdae}_{args.lambda1}_{args.lambda2}_{args.lambdaclus}_{args.lambdasep}_{args.seed}"
 model_folder = os.path.join(os.getcwd(), "saved_model", "mnist_model", name)
 makedirs(model_folder)
 img_folder = os.path.join(model_folder, "img")
@@ -77,8 +77,8 @@ makedirs(img_folder)
 
 #Save the configuration clearly
 
-model_filename = "mnist_cae_adv_Attacks3"
-optimizer_filename = "optimizer_cae_Attacks3"
+model_filename = "mnist_adv_Attacks_interpretability"
+optimizer_filename = "mnist_adv_Attacks_interpretability"
 
 # console_log is the handle to a text file that records the console output
 log_folder=os.path.join(model_folder, "log")
@@ -146,7 +146,7 @@ random_start = True if args.randstart == "True" else False
 
 #adversarial loss
 if args.adversarialloss == "ce":
-    adversarial_loss = CELoss
+    adversarial_loss = Loss_1
 
 start_time= time.time()
 
