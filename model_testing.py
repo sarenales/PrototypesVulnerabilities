@@ -301,7 +301,7 @@ def run_tests(model, test_loader, attack, loss_generator, num_runs=5):
     
     return (test_ac_mean, test_ac_std), (test_ac_adv_mean, test_ac_adv_std), (metric_percentage_mean, metric_percentage_std)
 
-def adversarial_attacks_eps_plot(models, model_names, test_loader, attack, loss, max_eps, step=0.025):
+def adversarial_attacks_eps_plot(models, model_names, test_loader, attack, loss, max_eps, step=0.0001):
     """
     Plots the accuracy of models under adversarial attacks for different epsilon values.
 
@@ -312,7 +312,7 @@ def adversarial_attacks_eps_plot(models, model_names, test_loader, attack, loss,
         attack (function): The adversarial attack function.
         loss (function): The loss function used for the attack.
         max_eps (int or float): The maximum epsilon value for the attack.
-        step (float, optional): The step size for epsilon values. Defaults to 0.025.
+        step (float, optional): The step size for epsilon values. Defaults to 0.01.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Define the device
     dim = max_eps+1 if isinstance(max_eps, int) else int(max_eps/step) + 1
