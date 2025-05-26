@@ -832,3 +832,139 @@ def test_adversarial_2(model, test_loader, loss, attack, n_examples, examples_ty
     print("\tIncorrectly classified and the closest prototype is different: {:.4f}".format(incorr_dist_proto))
     
     # return max_indices, max_indices_adv
+
+def analyze_adversarial_robustness(model, test_loader, attack, loss, param_name, param_range, fixed_params=None, loss_params=None):
+    """
+    Analyzes model robustness against adversarial attacks with different parameter values.
+    
+    Args:
+        model (torch.nn.Module): The model to test
+        test_loader (torch.utils.data.DataLoader): Test data loader
+        attack (function): The attack function to use
+        loss (function): Loss function for the attack
+        param_name (str): Name of the parameter to vary ('eps', 'alpha', 'iters')
+        param_range (list): List of values to test for the parameter
+        fixed_params (dict, optional): Dictionary of fixed parameters for the attack
+        loss_params (dict, optional): Dictionary of parameters for the loss function
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+    
+    # Default parameters for PGDLInf attack
+    default_params = {
+        'eps': 0.3,
+        'alpha': 0.01,
+        'iters': 40,
+        'random_start': True
+    }
+    
+    # Default parameters for Loss_1
+    default_loss_params = {
+        'alpha1': 0,
+        'alpha2': 1,
+        'objective': 'advl',
+        'force_class': None,
+        'change_expl': None
+    }
+    
+    # Update default parameters with any fixed parameters provided
+    if fixed_params:
+        default_params.update(fixed_params)
+    if loss_params:
+        default_loss_params.update(loss_params)
+    
+    accuracies = []
+    
+    for param_value in param_range:
+        # Create attack parameters dictionary
+        attack_params = default_params.copy()
+        attack_params[param_name] = param_value
+        
+        # Initialize metrics
+        correct = 0
+        total = 0
+        
+        for batch in test_loader:
+            batch_x, batch_y = batch
+            batch_x = batch_x.to(device)
+            batch_y = batch_y.to(device)
+            
+            # Generate adversarial examples
+            loss_f = partial(loss, 
+                           model=model,
+                           batch_y=batch_y,
+                           alpha1=default_loss_params['alpha1'],
+                           alpha2=default_loss_params['alpha2'],
+                           objective=default_loss_params['objective'],
+                           force_class=default_loss_params['force_class'],
+                           change_expl=default_loss_params['change_expl'])
+            
+            adv_attack = partial(attack, 
+                               eps=attack_params['eps'],
+                               alpha=attack_params['alpha'],
+                               iters=attack_params['iters'],
+                               random_start=attack_params['random_start'])
+            
+            perturbed_batch_x = adv_attack(loss_f=loss_f, batch_x=batch_x)
+            
+            # Get predictions
+            with torch.no_grad():
+                outputs = model(perturbed_batch_x)
+                _, predicted = torch.max(outputs.data, 1)
+                
+                total += batch_y.size(0)
+                correct += (predicted == batch_y).sum().item()
+        
+        accuracy = 100 * correct / total
+        accuracies.append(accuracy)
+        
+        print(f"{param_name}={param_value:.4f}: Accuracy = {accuracy:.2f}%")
+    
+    # Plot results
+    plt.figure(figsize=(10, 6))
+    plt.plot(param_range, accuracies, 'b-o')
+    plt.xlabel(param_name)
+    plt.ylabel('Accuracy (%)')
+    plt.title(f'Model Robustness vs {param_name}')
+    plt.grid(True)
+    plt.show()
+    
+    return param_range, accuracies
+
+def compare_attack_parameters(model, test_loader, attack, loss, param_ranges, fixed_params=None, loss_params=None):
+    """
+    Compares different attack parameters and their effects on model robustness.
+    
+    Args:
+        model (torch.nn.Module): The model to test
+        test_loader (torch.utils.data.DataLoader): Test data loader
+        attack (function): The attack function to use
+        loss (function): Loss function for the attack
+        param_ranges (dict): Dictionary of parameter names and their ranges to test
+            Example: {'eps': [0.01, 0.05, 0.1], 'alpha': [0.1, 0.2, 0.3]}
+        fixed_params (dict, optional): Dictionary of fixed parameters for the attack
+        loss_params (dict, optional): Dictionary of parameters for the loss function
+    """
+    results = {}
+    
+    for param_name, param_range in param_ranges.items():
+        print(f"\nAnalyzing {param_name}...")
+        param_values, accuracies = analyze_adversarial_robustness(
+            model, test_loader, attack, loss, param_name, param_range, fixed_params, loss_params
+        )
+        results[param_name] = (param_values, accuracies)
+    
+    # Create comparison plot
+    plt.figure(figsize=(12, 8))
+    for param_name, (values, accuracies) in results.items():
+        plt.plot(values, accuracies, 'o-', label=param_name)
+    
+    plt.xlabel('Parameter Value')
+    plt.ylabel('Accuracy (%)')
+    plt.title('Model Robustness Comparison')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+    
+    return results
