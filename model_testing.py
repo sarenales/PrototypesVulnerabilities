@@ -968,3 +968,263 @@ def compare_attack_parameters(model, test_loader, attack, loss, param_ranges, fi
     plt.show()
     
     return results
+
+def visualize_adversarial_examples_eps(model, test_loader, attack, loss, eps_values, n_examples=3, loss_params=None):
+    """
+    Visualiza ejemplos adversarios generados con diferentes valores de epsilon.
+    
+    Args:
+        model (torch.nn.Module): El modelo a probar
+        test_loader (torch.utils.data.DataLoader): DataLoader para los datos de prueba
+        attack (function): Función de ataque a utilizar
+        loss (function): Función de pérdida para el ataque
+        eps_values (list): Lista de valores de epsilon a probar
+        n_examples (int): Número de ejemplos a mostrar
+        loss_params (dict, optional): Parámetros para la función de pérdida
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+    
+    # Parámetros por defecto para Loss_1
+    default_loss_params = {
+        'alpha1': 0,
+        'alpha2': 1,
+        'objective': 'advl',
+        'force_class': None,
+        'change_expl': None
+    }
+    
+    if loss_params:
+        default_loss_params.update(loss_params)
+    
+    # Obtener un batch de ejemplos
+    batch = next(iter(test_loader))
+    batch_x, batch_y = batch
+    batch_x = batch_x.to(device)
+    batch_y = batch_y.to(device)
+    
+    # Limitar el número de ejemplos
+    batch_x = batch_x[:n_examples]
+    batch_y = batch_y[:n_examples]
+    
+    # Crear figura para visualización
+    n_rows = n_examples
+    n_cols = len(eps_values) + 1  # +1 para la imagen original
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*3, n_rows*3))
+    
+    # Mostrar imágenes originales en la primera columna
+    for i in range(n_examples):
+        axes[i, 0].imshow(batch_x[i].cpu().squeeze(), cmap='gray')
+        axes[i, 0].set_title(f'Original\nTrue: {batch_y[i].item()}')
+        axes[i, 0].axis('off')
+    
+    # Generar y mostrar ejemplos adversarios para cada epsilon
+    for j, eps in enumerate(eps_values):
+        # Configurar el ataque
+        loss_f = partial(loss, 
+                        model=model,
+                        batch_y=batch_y,
+                        alpha1=default_loss_params['alpha1'],
+                        alpha2=default_loss_params['alpha2'],
+                        objective=default_loss_params['objective'],
+                        force_class=default_loss_params['force_class'],
+                        change_expl=default_loss_params['change_expl'])
+        
+        adv_attack = partial(attack, 
+                           eps=eps,
+                           alpha=0.01,
+                           iters=40,
+                           random_start=True)
+        
+        # Generar ejemplos adversarios
+        perturbed_batch_x = adv_attack(loss_f=loss_f, batch_x=batch_x)
+        
+        # Obtener predicciones
+        with torch.no_grad():
+            outputs = model(perturbed_batch_x)
+            _, predicted = torch.max(outputs.data, 1)
+        
+        # Mostrar ejemplos adversarios
+        for i in range(n_examples):
+            # Calcular la perturbación
+            perturbation = (perturbed_batch_x[i] - batch_x[i]).abs().cpu()
+            
+            # Mostrar imagen adversaria
+            axes[i, j+1].imshow(perturbed_batch_x[i].cpu().squeeze(), cmap='gray')
+            axes[i, j+1].set_title(f'ε={eps:.3f}\nPred: {predicted[i].item()}')
+            axes[i, j+1].axis('off')
+            
+            # Mostrar la perturbación en un subplot adicional
+            if j == len(eps_values) - 1:  # Solo para el último epsilon
+                fig_pert, ax_pert = plt.subplots(1, 1, figsize=(3, 3))
+                im = ax_pert.imshow(perturbation.squeeze(), cmap='hot')
+                ax_pert.set_title(f'Perturbación (ε={eps:.3f})')
+                plt.colorbar(im, ax=ax_pert)
+                ax_pert.axis('off')
+                plt.show()
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Mostrar estadísticas de precisión
+    print("\nEstadísticas de precisión:")
+    for eps in eps_values:
+        loss_f = partial(loss, 
+                        model=model,
+                        batch_y=batch_y,
+                        alpha1=default_loss_params['alpha1'],
+                        alpha2=default_loss_params['alpha2'],
+                        objective=default_loss_params['objective'],
+                        force_class=default_loss_params['force_class'],
+                        change_expl=default_loss_params['change_expl'])
+        
+        adv_attack = partial(attack, 
+                           eps=eps,
+                           alpha=0.01,
+                           iters=40,
+                           random_start=True)
+        
+        perturbed_batch_x = adv_attack(loss_f=loss_f, batch_x=batch_x)
+        
+        with torch.no_grad():
+            outputs = model(perturbed_batch_x)
+            _, predicted = torch.max(outputs.data, 1)
+            correct = (predicted == batch_y).sum().item()
+            accuracy = 100 * correct / batch_y.size(0)
+            
+        print(f"ε={eps:.3f}: Precisión = {accuracy:.2f}%")
+
+def visualize_adversarial_examples_alpha(model, test_loader, attack, loss, alpha_values, eps=0.01, n_examples=3, loss_params=None):
+    """
+    Visualiza ejemplos adversarios generados con diferentes valores de alpha.
+    
+    Args:
+        model (torch.nn.Module): El modelo a probar
+        test_loader (torch.utils.data.DataLoader): DataLoader para los datos de prueba
+        attack (function): Función de ataque a utilizar
+        loss (function): Función de pérdida para el ataque
+        alpha_values (list): Lista de valores de alpha a probar
+        eps (float): Valor de epsilon fijo para todos los ataques
+        n_examples (int): Número de ejemplos a mostrar
+        loss_params (dict, optional): Parámetros para la función de pérdida
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+    
+    # Parámetros por defecto para Loss_1
+    default_loss_params = {
+        'alpha1': 0,
+        'alpha2': 1,
+        'objective': 'advl',
+        'force_class': None,
+        'change_expl': None
+    }
+    
+    if loss_params:
+        default_loss_params.update(loss_params)
+    
+    # Obtener un batch de ejemplos
+    batch = next(iter(test_loader))
+    batch_x, batch_y = batch
+    batch_x = batch_x.to(device)
+    batch_y = batch_y.to(device)
+    
+    # Limitar el número de ejemplos
+    batch_x = batch_x[:n_examples]
+    batch_y = batch_y[:n_examples]
+    
+    # Crear figura para visualización
+    n_rows = n_examples
+    n_cols = len(alpha_values) + 1  # +1 para la imagen original
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*3, n_rows*3))
+    
+    # Mostrar imágenes originales en la primera columna
+    for i in range(n_examples):
+        axes[i, 0].imshow(batch_x[i].cpu().squeeze(), cmap='gray')
+        axes[i, 0].set_title(f'Original\nTrue: {batch_y[i].item()}')
+        axes[i, 0].axis('off')
+    
+    # Generar y mostrar ejemplos adversarios para cada alpha
+    for j, alpha in enumerate(alpha_values):
+        # Configurar el ataque
+        loss_f = partial(loss, 
+                        model=model,
+                        batch_y=batch_y,
+                        alpha1=default_loss_params['alpha1'],
+                        alpha2=default_loss_params['alpha2'],
+                        objective=default_loss_params['objective'],
+                        force_class=default_loss_params['force_class'],
+                        change_expl=default_loss_params['change_expl'])
+        
+        adv_attack = partial(attack, 
+                           eps=eps,
+                           alpha=alpha,
+                           iters=40,
+                           random_start=True)
+        
+        # Generar ejemplos adversarios
+        perturbed_batch_x = adv_attack(loss_f=loss_f, batch_x=batch_x)
+        
+        # Obtener predicciones
+        with torch.no_grad():
+            outputs = model(perturbed_batch_x)
+            _, predicted = torch.max(outputs.data, 1)
+        
+        # Mostrar ejemplos adversarios
+        for i in range(n_examples):
+            # Calcular la perturbación
+            perturbation = (perturbed_batch_x[i] - batch_x[i]).abs().cpu()
+            
+            # Mostrar imagen adversaria
+            axes[i, j+1].imshow(perturbed_batch_x[i].cpu().squeeze(), cmap='gray')
+            axes[i, j+1].set_title(f'α={alpha:.4f}\nPred: {predicted[i].item()}')
+            axes[i, j+1].axis('off')
+            
+            # Mostrar la perturbación en un subplot adicional
+            if j == len(alpha_values) - 1:  # Solo para el último alpha
+                fig_pert, ax_pert = plt.subplots(1, 1, figsize=(3, 3))
+                im = ax_pert.imshow(perturbation.squeeze(), cmap='hot')
+                ax_pert.set_title(f'Perturbación (α={alpha:.4f})')
+                plt.colorbar(im, ax=ax_pert)
+                ax_pert.axis('off')
+                plt.show()
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Mostrar estadísticas de precisión y magnitud de perturbación
+    print("\nEstadísticas:")
+    print("α\tPrecisión\tMagnitud media de perturbación")
+    print("-" * 50)
+    
+    for alpha in alpha_values:
+        loss_f = partial(loss, 
+                        model=model,
+                        batch_y=batch_y,
+                        alpha1=default_loss_params['alpha1'],
+                        alpha2=default_loss_params['alpha2'],
+                        objective=default_loss_params['objective'],
+                        force_class=default_loss_params['force_class'],
+                        change_expl=default_loss_params['change_expl'])
+        
+        adv_attack = partial(attack, 
+                           eps=eps,
+                           alpha=alpha,
+                           iters=40,
+                           random_start=True)
+        
+        perturbed_batch_x = adv_attack(loss_f=loss_f, batch_x=batch_x)
+        
+        with torch.no_grad():
+            outputs = model(perturbed_batch_x)
+            _, predicted = torch.max(outputs.data, 1)
+            correct = (predicted == batch_y).sum().item()
+            accuracy = 100 * correct / batch_y.size(0)
+            
+            # Calcular magnitud media de la perturbación
+            perturbation = (perturbed_batch_x - batch_x).abs()
+            mean_perturbation = perturbation.mean().item()
+            
+        print(f"{alpha:.4f}\t{accuracy:.2f}%\t\t{mean_perturbation:.6f}")
