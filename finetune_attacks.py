@@ -53,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument("-ls",  "--ls",  dest="lambdasep",  type=float, default=0.2,  help="lambda separation hyperparameter")
     
     parser.add_argument("-s",  "--s",  dest="seed",  type=int, default=1,  help="random seed for reproducibility")
-    parser.add_argument("-path",  "--path",  dest="path",  type=str, default="./saved_model/mnist_model/mnist_cae_FT_30_prototypes_pdglinf_ce_20_0.3_0.02_True_20_0.002_250_20_1_1_1_1.0_0.0_1/mnist_cae_adv00020.pth",  help="path to the model to finetune")
+    parser.add_argument("-path",  "--path",  dest="path",  type=str, default="./saved_model/mnist_model/mnist_cae_FT2_3_30_pdglinf_advl_40_0.3_0.01_True_20_0.002_250_20_1_1_1_0.8_0.2_1/mnist_cae_adv2_300020.pth",  help="path to the model to finetune")
     
     args = parser.parse_args()
         
@@ -69,16 +69,16 @@ model = torch.load(args.path, map_location=torch.device('cpu'), weights_only=Fal
 n_prototypes = model.fc.linear.weight.size(1)
 
 # the directory to save the model
-name = f"mnist_adv_Attacks_interpretability{n_prototypes}_{args.adversarialattack}_{args.adversarialloss}_{args.iters}_{args.eps}_{args.alpha}_{args.randstart}_{args.epochs}_{args.lr}_{args.batchsize}_{args.lambdac}_{args.lambdae}_{args.lambda1}_{args.lambda2}_{args.lambdaclus}_{args.lambdasep}_{args.seed}"
-model_folder = os.path.join(os.getcwd(), "saved_model", "mnist_model", name)
+name = f"mnist_adv_Attacks_interpretability_2{n_prototypes}_{args.adversarialattack}_{args.adversarialloss}_{args.iters}_{args.eps}_{args.alpha}_{args.randstart}_{args.epochs}_{args.lr}_{args.batchsize}_{args.lambdac}_{args.lambdae}_{args.lambda1}_{args.lambda2}_{args.lambdaclus}_{args.lambdasep}_{args.seed}"
+model_folder = os.path.join(os.getcwd(), "saved_model copia", name)
 makedirs(model_folder)
 img_folder = os.path.join(model_folder, "img")
 makedirs(img_folder)
 
 #Save the configuration clearly
 
-model_filename = "mnist_adv_Attacks_interpretability"
-optimizer_filename = "mnist_adv_Attacks_interpretability"
+model_filename = "mnist_adv_Attacks_interpretability_2"
+optimizer_filename = "mnist_adv_Attacks_interpretability_2"
 
 # console_log is the handle to a text file that records the console output
 log_folder=os.path.join(model_folder, "log")
