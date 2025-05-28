@@ -8,6 +8,8 @@ import matplotlib.gridspec as gridspec
 from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
 
+from loss_functions import Loss_1
+
 softmax = Softmax()
 
 def show_adversarial_examples(model, batch_x, perturbed_batch_x, batch_y, pred_y, pred_y_adv, conf_y, conf_y_adv, n_examples, examples_type):
@@ -134,7 +136,7 @@ def show_adversarial_examples(model, batch_x, perturbed_batch_x, batch_y, pred_y
                 
             total_examples += 1  # Increment the total examples counter
 
-        if total_examples >= n_examples:  # Stop when the number of examples have been achieved
+        #if total_examples >= n_examples:  # Stop when the number of examples have been achieved
             break
 
     return total_examples
@@ -968,6 +970,76 @@ def compare_attack_parameters(model, test_loader, attack, loss, param_ranges, fi
     plt.show()
     
     return results
+
+
+
+def visualize_adversarials(model, test_loader, attack, alpha2_values):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Obtener un solo batch y una sola imagen
+    batch = next(iter(test_loader))
+    batch_x = batch[0][:1]  # Tomamos solo la primera imagen
+    batch_y = batch[1][:1]
+    batch_x = batch_x.to(device)
+    batch_x.requires_grad = True
+    batch_y = batch_y.to(device)
+
+    # Handle channel conversion if needed
+    if batch_x.shape[1] == 3:
+        grayscale_images = 0.2989 * batch_x[:,0] + 0.5870 * batch_x[:,1] + 0.1140 * batch_x[:,2]
+        grayscale_images = grayscale_images.unsqueeze(1)
+    else:
+        grayscale_images = batch_x
+
+    # Calcular el número de filas y columnas para la matriz
+    n_values = len(alpha2_values) + 1  # +1 para la imagen original
+    n_cols = 5  # Número de columnas que quieres
+    n_rows = (n_values + n_cols - 1) // n_cols  # Cálculo del número de filas necesarias
+    
+    # Crear figura para visualización
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*3, n_rows*3))
+    axes = axes.flatten()  # Convertir la matriz de ejes en una lista plana
+    
+    # Mostrar la imagen original en la primera posición
+    axes[0].imshow(grayscale_images[0].detach().cpu().squeeze(), cmap='gray')
+    axes[0].set_title(f'Original\nTrue: {batch_y[0].item()}')
+    axes[0].axis('off')
+    
+    # Generar y mostrar ejemplos adversarios para cada alpha2
+    for j, alpha2 in enumerate(alpha2_values):
+        # Configurar el ataque con el alpha2 actual
+        loss_f = partial(Loss_1, 
+                        model=model, 
+                        batch_y=batch_y,
+                        alpha1=1, 
+                        alpha2=alpha2, 
+                        objective="advl", 
+                        force_class=None, 
+                        change_expl=None)
+        
+        adv_attack = partial(attack, loss_f=loss_f)
+        perturbed_batch_x = adv_attack(grayscale_images)
+
+        # Get predictions
+        pred_y_adv = model.forward(perturbed_batch_x)
+        pred_y_adv = softmax(pred_y_adv)
+        conf_y_adv, max_indices_adv = torch.max(pred_y_adv, 1)
+
+        # Visualizar ejemplo adversarial
+        axes[j+1].imshow(perturbed_batch_x[0].detach().cpu().squeeze(), cmap='gray')
+        axes[j+1].set_title(f'α2={alpha2}\nTrue: {batch_y[0].item()}\nPred: {max_indices_adv[0].item()}\nConf: {conf_y_adv[0]:.2f}')
+        axes[j+1].axis('off')
+
+    # Ocultar los ejes vacíos si los hay
+    for j in range(n_values, len(axes)):
+        axes[j].axis('off')
+        axes[j].set_visible(False)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
 
 def visualize_adversarial_examples_eps(model, test_loader, attack, loss, eps_values, n_examples=3, loss_params=None):
     """
