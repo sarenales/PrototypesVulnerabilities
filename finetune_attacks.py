@@ -54,7 +54,7 @@ if __name__ == '__main__':
     
     parser.add_argument("-s",  "--s",  dest="seed",  type=int, default=1,  help="random seed for reproducibility")
     parser.add_argument("-path",  "--path",  dest="path",  type=str, default="./saved_model/mnist_model/mnist_cae_FT2_3_30_pdglinf_advl_40_0.3_0.01_True_20_0.002_250_20_1_1_1_0.8_0.2_1/mnist_cae_adv2_300020.pth",  help="path to the model to finetune")
-    
+                            
     args = parser.parse_args()
         
 # train the model for MNIST handwritten digit dataset
@@ -69,7 +69,7 @@ model = torch.load(args.path, map_location=torch.device('cpu'), weights_only=Fal
 n_prototypes = model.fc.linear.weight.size(1)
 
 # the directory to save the model
-name = f"mnist_adv_Attacks_interpretability_2{n_prototypes}_{args.adversarialattack}_{args.adversarialloss}_{args.iters}_{args.eps}_{args.alpha}_{args.randstart}_{args.epochs}_{args.lr}_{args.batchsize}_{args.lambdac}_{args.lambdae}_{args.lambda1}_{args.lambda2}_{args.lambdaclus}_{args.lambdasep}_{args.seed}"
+name = f"mnist_adv_Attacks_interpretability_3{n_prototypes}_{args.adversarialattack}_{args.adversarialloss}_{args.iters}_{args.eps}_{args.alpha}_{args.randstart}_{args.epochs}_{args.lr}_{args.batchsize}_{args.lambdac}_{args.lambdae}_{args.lambda1}_{args.lambda2}_{args.lambdaclus}_{args.lambdasep}_{args.seed}"
 model_folder = os.path.join(os.getcwd(), "saved_model copia", name)
 makedirs(model_folder)
 img_folder = os.path.join(model_folder, "img")
@@ -77,8 +77,8 @@ makedirs(img_folder)
 
 #Save the configuration clearly
 
-model_filename = "mnist_adv_Attacks_interpretability_2"
-optimizer_filename = "optimizer_adv_Attacks_interpretability_2"
+model_filename = "mnist_adv_Attacks_interpretability_3"
+optimizer_filename = "optimizer_adv_Attacks_interpretability_3"
 
 # console_log is the handle to a text file that records the console output
 log_folder=os.path.join(model_folder, "log")
@@ -146,7 +146,8 @@ random_start = True if args.randstart == "True" else False
 
 #adversarial loss
 if args.adversarialloss == "ce":
-    adversarial_loss = Loss_1
+    adversarial_loss = partial(Loss_1, model = model, alpha1=0, alpha2 = 1, objective = "advl", force_class = None, change_expl = None)
+
 
 start_time= time.time()
 
@@ -173,16 +174,19 @@ with open(config_file_path, "w") as config_file:
     
 
 # Definir los ataques adversariales
-attacks = [
-    torchattacks.DeepFool(model),
-    torchattacks.EADEN(model),
-    torchattacks.Pixle(model),
+#attacks = [
+#    torchattacks.FGSM(model, eps=eps, alpha=alpha, random_start=random_start),
+#    torchattacks.PGD(model, eps=eps, alpha=alpha, iters=iters, random_start=random_start),
+#    torchattacks.DeepFool(model),
+#    torchattacks.EADEN(model),
+#    torchattacks.Pixle(model),
     # torchattacks.SparseFool(model),
     # torchattacks.EADL1(model)
-]
+#]
 
 # optimizer setup
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+adversarial_attack = partial(PGDL2_attack, eps=eps, alpha=alpha, iters=iters, random_start=random_start)
 
 for epoch in range(0, training_epochs):
     print_and_write("#"*80, console_log)
@@ -208,14 +212,21 @@ for epoch in range(0, training_epochs):
 
             #### Todos los ataques a la vez (costoso)
             # generate adversarial different batchs for each attacks
-            adversarial_batches = []
-            for attack in attacks:
-                loss_f = partial(adversarial_loss, model=model, batch_y=batch_y)
-                batch_x_adv = attack(batch_x, batch_y)
-                adversarial_batches.append(batch_x_adv.to('cpu'))
+
+            # generate adversarial batch
+            optimizer.zero_grad()
+            loss_f = partial(adversarial_loss, model=model, batch_y=batch_y)
+            batch_x_adv = adversarial_attack(loss_f=loss_f, batch_x=batch_x)
+            batch_x_adv = batch_x_adv.to('cpu')
+            
+            # adversarial_batches = []
+            #for attack in attacks:
+            #    loss_f = partial(adversarial_loss, model=model, batch_y=batch_y)
+            #    batch_x_adv = attack(batch_x, batch_y)
+            #    adversarial_batches.append(batch_x_adv.to('cpu'))
 
             # combine the adversarial batches
-            all_batches = [batch_x] + adversarial_batches
+            # all_batches = [batch_x] + adversarial_batches
             
             #### Alternancia entre ataques
             # N = 3  # Cambiar de ataque cada 3 batches
@@ -230,7 +241,7 @@ for epoch in range(0, training_epochs):
             # batch_x_adv = adversarial_attack(loss_f=loss_f, batch_x=batch_x)
             # batch_x_adv = batch_x_adv.to('cpu')
             
-            for idx, b_x in enumerate(all_batches):
+            for idx, b_x in enumerate([batch_x_adv, batch_x]):
                 
                 elastic_batch_x = b_x.to(device)
                 
@@ -310,8 +321,8 @@ for epoch in range(0, training_epochs):
             # all_batches = [batch_x] + adversarial_batches
 
             #### Alternancia entre ataques
-            attack = attacks[i % len(attacks)]
-            batch_x_adv = attack(batch_x, batch_y)
+            #attack = attacks[i % len(attacks)]
+            #batch_x_adv = attack(batch_x, batch_y)
 
             # generate adversarial batch
             # optimizer.zero_grad()
