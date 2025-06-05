@@ -78,7 +78,7 @@ makedirs(img_folder)
 #Save the configuration clearly
 
 model_filename = "mnist_adv_Attacks_interpretability_2"
-optimizer_filename = "mnist_adv_Attacks_interpretability_2"
+optimizer_filename = "optimizer_adv_Attacks_interpretability_2"
 
 # console_log is the handle to a text file that records the console output
 log_folder=os.path.join(model_folder, "log")
