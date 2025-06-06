@@ -10,6 +10,8 @@ from sklearn.metrics import confusion_matrix
 
 from loss_functions import Loss_1
 
+from tqdm import tqdm
+
 softmax = Softmax()
 
 def show_adversarial_examples(model, batch_x, perturbed_batch_x, batch_y, pred_y, pred_y_adv, conf_y, conf_y_adv, n_examples, examples_type):
@@ -1313,15 +1315,13 @@ def adversarial_accuracy_test(model, test_loader, loss, attack):
         attack (function): The attack function
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    test_ac = 0
-    test_ac_adv = 0
 
     # Initialize counters for evaluation metrics
     correct_clean = 0
     correct_adv = 0
     total = 0
 
-    for i, batch in enumerate(test_loader):
+    for i, batch in enumerate(tqdm(test_loader)):
         batch_x = batch[0]
         batch_y = batch[1]
         batch_x = batch_x.to(device)
@@ -1348,14 +1348,10 @@ def adversarial_accuracy_test(model, test_loader, loss, attack):
 
         # test accuracy
         conf_y, max_indices = torch.max(pred_y,1)
-        n = max_indices.size(0)
-        test_ac += (max_indices == batch_y).sum(dtype=torch.float32)/n
         correct_clean += (max_indices == batch_y).sum().item()
 
         #adversarial test accuracy
         conf_y_adv, max_indices_adv = torch.max(pred_y_adv,1)
-        n = max_indices_adv.size(0)
-        test_ac_adv += (max_indices_adv == batch_y).sum(dtype=torch.float32)/n
         correct_adv += (max_indices_adv == batch_y).sum().item()
         
         total += batch_y.size(0)
@@ -1370,4 +1366,53 @@ def adversarial_accuracy_test(model, test_loader, loss, attack):
     print(f"Adversarial Accuracy: {adv_acc:.2f}%")
     print(f"Attack Success Rate: {attack_success:.2f}%")
     
+    return clean_acc, adv_acc, attack_success
+
+def adversarial_accuracy_test_2(model, test_loader, loss, attack):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.eval()  # Asegurarse de que el modelo está en modo evaluación
+    
+    correct_clean = 0
+    correct_adv = 0
+    total = 0
+
+    with torch.no_grad():  # Desactivar cálculo de gradientes para la evaluación normal
+        for i, batch in enumerate(test_loader):
+            batch_x, batch_y = batch[0].to(device), batch[1].to(device)
+            
+            # Evaluación normal
+            if batch_x.shape[1] == 3:
+                grayscale_images = 0.2989 * batch_x[:,0] + 0.5870 * batch_x[:,1] + 0.1140 * batch_x[:,2]
+                grayscale_images = grayscale_images.unsqueeze(1)
+            else:
+                grayscale_images = batch_x
+
+            pred_y = model(grayscale_images)
+            pred_y = softmax(pred_y)
+            _, max_indices = torch.max(pred_y, 1)
+            correct_clean += (max_indices == batch_y).sum().item()
+            
+            # Generar ejemplos adversarios (esto necesita gradientes)
+            grayscale_images.requires_grad = True
+            loss_f = partial(loss, batch_y=batch_y)
+            adv_attack = partial(attack, loss_f=loss_f)
+            perturbed_batch_x = adv_attack(grayscale_images)
+            
+            # Evaluación adversaria
+            with torch.no_grad():
+                pred_y_adv = model(perturbed_batch_x)
+                pred_y_adv = softmax(pred_y_adv)
+                _, max_indices_adv = torch.max(pred_y_adv, 1)
+                correct_adv += (max_indices_adv == batch_y).sum().item()
+            
+            total += batch_y.size(0)
+            
+            # Mostrar progreso
+            if i % 10 == 0:
+                print(f"Procesando batch {i}/{len(test_loader)}")
+
+    clean_acc = 100 * correct_clean / total
+    adv_acc = 100 * correct_adv / total
+    attack_success = 100 * (correct_clean - correct_adv) / correct_clean if correct_clean > 0 else 0
+
     return clean_acc, adv_acc, attack_success
