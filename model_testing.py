@@ -822,16 +822,16 @@ def test_adversarial_2(model, test_loader, loss, attack, n_examples, examples_ty
     print(f"Adversarial Accuracy: {adv_acc:.2f}%")
     print(f"Attack Success Rate: {attack_success:.2f}%")
     
-    print("\nPrototype Analysis:")
-    print("test set:")
-    print("\taccuracy: {:.4f}".format(test_ac))
+    #print("\nPrototype Analysis:")
+    #print("test set:")
+    #print("\taccuracy: {:.4f}".format(test_ac))
 
-    print("adversarial test set:")
-    print("\taccuracy: {:.4f}".format(test_ac_adv))
-    print("\tCorrectly classified and the closest prototype is different: {:.4f}".format(corr_dist_proto))
-    print("\tCorrectly classified and the closest prototype is the same: {:.4f}".format(corr_same_proto))
-    print("\tIncorrectly classified and the closest prototype is the same: {:.4f}".format(incorr_same_proto))
-    print("\tIncorrectly classified and the closest prototype is different: {:.4f}".format(incorr_dist_proto))
+    #print("adversarial test set:")
+    #print("\taccuracy: {:.4f}".format(test_ac_adv))
+    #print("\tCorrectly classified and the closest prototype is different: {:.4f}".format(corr_dist_proto))
+    #print("\tCorrectly classified and the closest prototype is the same: {:.4f}".format(corr_same_proto))
+    #print("\tIncorrectly classified and the closest prototype is the same: {:.4f}".format(incorr_same_proto))
+    #print("\tIncorrectly classified and the closest prototype is different: {:.4f}".format(incorr_dist_proto))
     
     # return max_indices, max_indices_adv
 
@@ -1300,3 +1300,74 @@ def visualize_adversarial_examples_alpha(model, test_loader, attack, loss, alpha
             mean_perturbation = perturbation.mean().item()
             
         print(f"{alpha:.4f}\t{accuracy:.2f}%\t\t{mean_perturbation:.6f}")
+
+
+
+def adversarial_accuracy_test(model, test_loader, loss, attack):
+    """
+    Test the adversarial accuracy of the model.
+    Args:
+        model (torch.nn.Module): The model to test
+        test_loader (torch.utils.data.DataLoader): The test loader
+        loss (function): The loss function
+        attack (function): The attack function
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    test_ac = 0
+    test_ac_adv = 0
+
+    # Initialize counters for evaluation metrics
+    correct_clean = 0
+    correct_adv = 0
+    total = 0
+
+    for i, batch in enumerate(test_loader):
+        batch_x = batch[0]
+        batch_y = batch[1]
+        batch_x = batch_x.to(device)
+        batch_x.requires_grad = True
+        batch_y = batch_y.to(device)
+
+        # Handle channel conversion if needed
+        if batch_x.shape[1] == 3:
+            grayscale_images = 0.2989 * batch_x[:,0] + 0.5870 * batch_x[:,1] + 0.1140 * batch_x[:,2]
+            grayscale_images = grayscale_images.unsqueeze(1)
+        else:
+            grayscale_images = batch_x
+
+        pred_y = model.forward(grayscale_images)
+        pred_y = softmax(pred_y)
+
+        loss_f = partial(loss, batch_y=batch_y)
+        adv_attack = partial(attack, loss_f=loss_f)
+
+        perturbed_batch_x = adv_attack(grayscale_images)
+
+        pred_y_adv = model.forward(perturbed_batch_x)
+        pred_y_adv = softmax(pred_y_adv)
+
+        # test accuracy
+        conf_y, max_indices = torch.max(pred_y,1)
+        n = max_indices.size(0)
+        test_ac += (max_indices == batch_y).sum(dtype=torch.float32)/n
+        correct_clean += (max_indices == batch_y).sum().item()
+
+        #adversarial test accuracy
+        conf_y_adv, max_indices_adv = torch.max(pred_y_adv,1)
+        n = max_indices_adv.size(0)
+        test_ac_adv += (max_indices_adv == batch_y).sum(dtype=torch.float32)/n
+        correct_adv += (max_indices_adv == batch_y).sum().item()
+        
+        total += batch_y.size(0)
+
+    # Calculate final metrics
+    clean_acc = 100 * correct_clean / total
+    adv_acc = 100 * correct_adv / total
+    attack_success = 100 * (correct_clean - correct_adv) / correct_clean if correct_clean > 0 else 0
+
+    print("\nEvaluation Metrics:")
+    print(f"Clean Accuracy: {clean_acc:.2f}%")
+    print(f"Adversarial Accuracy: {adv_acc:.2f}%")
+    print(f"Attack Success Rate: {attack_success:.2f}%")
+    
+    return clean_acc, adv_acc, attack_success
