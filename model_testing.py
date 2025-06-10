@@ -437,6 +437,8 @@ def draw_confusion_matrix(cm, categories):
     plt.show()
 
 
+
+
 def test_adversarial(model, test_loader, loss, attack, n_examples, examples_type):
     """
     Test the model's performance on adversarial examples.
@@ -1027,9 +1029,26 @@ def visualize_adversarials(model, test_loader, attack, alpha2_values):
         pred_y_adv = softmax(pred_y_adv)
         conf_y_adv, max_indices_adv = torch.max(pred_y_adv, 1)
 
+        # Obtener las distancias a los prototipos
+        distances = model.prototype_layer(model.encoder(grayscale_images).view(grayscale_images.size(0), -1))
+        distances_adv = model.prototype_layer(model.encoder(perturbed_batch_x).view(perturbed_batch_x.size(0), -1))
+        
+        # Obtener los logits antes del softmax
+        logits = model.fc(distances)
+        logits_adv = model.fc(distances_adv)
+        
+        # Mostrar más información en el título
+        axes[j+1].set_title(
+            f'α2={alpha2}\n'
+            f'True: {batch_y[0].item()}\n'
+            f'Pred: {max_indices_adv[0].item()}\n'
+            f'Conf: {conf_y_adv[0]:.2f}\n'
+            f'Dist cambio: {distances[0][max_indices_adv[0]] - distances_adv[0][max_indices_adv[0]]:.2f}\n'
+            f'Logit cambio: {logits[0][max_indices_adv[0]] - logits_adv[0][max_indices_adv[0]]:.2f}'
+        )
+
         # Visualizar ejemplo adversarial
         axes[j+1].imshow(perturbed_batch_x[0].detach().cpu().squeeze(), cmap='gray')
-        axes[j+1].set_title(f'α2={alpha2}\nTrue: {batch_y[0].item()}\nPred: {max_indices_adv[0].item()}\nConf: {conf_y_adv[0]:.2f}')
         axes[j+1].axis('off')
 
     # Ocultar los ejes vacíos si los hay
