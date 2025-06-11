@@ -977,7 +977,7 @@ def compare_attack_parameters(model, test_loader, attack, loss, param_ranges, fi
 
 
 
-def visualize_adversarials(model, test_loader, attack, alpha2_values):
+def visualize_adversarials(model, test_loader, attack, alpha2_values, type_loss):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Obtener un solo batch y una sola imagen
@@ -1013,14 +1013,13 @@ def visualize_adversarials(model, test_loader, attack, alpha2_values):
     for j, alpha2 in enumerate(alpha2_values):
         # Configurar el ataque con el alpha2 actual
         loss_f = partial(Loss_1, 
-                        model=model, 
-                        batch_y=batch_y,
-                        alpha1=1, 
-                        alpha2=alpha2, 
-                        objective="advl", 
-                        force_class=None, 
-                        change_expl=None)
-        
+                            model=model, 
+                            batch_y=batch_y,
+                            alpha1=1, 
+                            alpha2=alpha2, 
+                            objective=type_loss, 
+                            force_class=None, 
+                            change_expl=None)
         adv_attack = partial(attack, loss_f=loss_f)
         perturbed_batch_x = adv_attack(grayscale_images)
 
@@ -1037,13 +1036,18 @@ def visualize_adversarials(model, test_loader, attack, alpha2_values):
         logits = model.fc(distances)
         logits_adv = model.fc(distances_adv)
         
+        # Encontrar el prototipo más cercano antes y después del ataque
+        closest_proto_before = torch.argmin(distances[0])
+        closest_proto_after = torch.argmin(distances_adv[0])
+        
         # Mostrar más información en el título
         axes[j+1].set_title(
             f'α2={alpha2}\n'
             f'True: {batch_y[0].item()}\n'
             f'Pred: {max_indices_adv[0].item()}\n'
             f'Conf: {conf_y_adv[0]:.2f}\n'
-            f'Dist cambio: {distances[0][max_indices_adv[0]] - distances_adv[0][max_indices_adv[0]]:.2f}\n'
+            f'Proto más cercano: {closest_proto_before.item()} → {closest_proto_after.item()}\n'
+            f'Dist cambio: {distances[0][closest_proto_before] - distances_adv[0][closest_proto_after]:.2f}\n'
             f'Logit cambio: {logits[0][max_indices_adv[0]] - logits_adv[0][max_indices_adv[0]]:.2f}'
         )
 
