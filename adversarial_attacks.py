@@ -323,3 +323,76 @@ def EADEN_attack(batch_x, loss_f, kappa=0, lr=0.01, binary_search_steps=9, max_i
     
     return final_adv_images
 
+def CW_attack(batch_x, loss_f, c=1, kappa=0, steps=50, lr=0.01):
+    """
+    Implements the Carlini & Wagner (CW) attack as described in 'Towards Evaluating the Robustness of Neural Networks'.
+    
+    Args:
+        batch_x (torch.Tensor): Input images of shape (N, C, H, W), values in range [0,1].
+        loss_f (callable): The loss function used to compute the loss.
+        c (float): Parameter for box-constraint. Default: 1.
+        kappa (float): Confidence parameter. Default: 0.
+        steps (int): Number of optimization steps. Default: 50.
+        lr (float): Learning rate for Adam optimizer. Default: 0.01.
+
+    Returns:
+        torch.Tensor: The perturbed batch of images.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    batch_x = batch_x.clone().detach().to(device)
+    batch_size = len(batch_x)
+    
+    # Initialize w in tanh space
+    w = inverse_tanh_space(batch_x).detach()
+    w.requires_grad = True
+    
+    best_adv_images = batch_x.clone().detach()
+    best_L2 = 1e10 * torch.ones((batch_size)).to(device)
+    prev_cost = 1e10
+    
+    optimizer = torch.optim.Adam([w], lr=lr)
+    
+    for step in range(steps):
+        # Get adversarial images
+        adv_images = tanh_space(w)
+        
+        # Calculate L2 loss
+        current_L2 = torch.norm((adv_images - batch_x).view(batch_size, -1), p=2, dim=1)
+        L2_loss = current_L2.sum()
+        
+        # Calculate classification loss
+        loss = loss_f(batch_x=adv_images)
+        
+        # Total cost
+        cost = L2_loss + c * loss
+        
+        optimizer.zero_grad()
+        cost.backward()
+        optimizer.step()
+        
+        # Update best adversarial images
+        mask = (best_L2 > current_L2.detach())
+        best_L2 = torch.where(mask, current_L2.detach(), best_L2)
+        
+        mask = mask.view([-1] + [1] * (len(batch_x.shape) - 1))
+        best_adv_images = torch.where(mask, adv_images.detach(), best_adv_images)
+        
+        # Early stop when loss does not converge
+        if step % max(steps // 10, 1) == 0:
+            if cost.item() > prev_cost:
+                return best_adv_images
+            prev_cost = cost.item()
+    
+    return best_adv_images
+
+def tanh_space(x):
+    """Convert from tanh space to image space."""
+    return 1/2 * (torch.tanh(x) + 1)
+
+def inverse_tanh_space(x):
+    """Convert from image space to tanh space."""
+    return torch.atanh(torch.clamp(x * 2 - 1, min=-1, max=1))
+
+
+
