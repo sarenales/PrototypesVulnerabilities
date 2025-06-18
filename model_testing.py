@@ -1439,3 +1439,181 @@ def adversarial_accuracy_test_2(model, test_loader, loss, attack):
     attack_success = 100 * (correct_clean - correct_adv) / correct_clean if correct_clean > 0 else 0
 
     return clean_acc, adv_acc, attack_success
+
+def test_adversarial_cw(model, test_loader, attack, n_examples, examples_type):
+    """
+    Tests the model against CW adversarial attacks and provides detailed analysis.
+    This function is specifically designed for CW attack class that inherits from Attack.
+    
+    Args:
+        model (torch.nn.Module): The model to test
+        test_loader (torch.utils.data.DataLoader): Test data loader
+        attack (Attack): The CW attack object to use
+        n_examples (int): Number of examples to visualize
+        examples_type (str): Type of examples to show ('worst', 'best', 'random')
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+    
+    # Initialize metrics
+    test_ac = 0
+    test_ac_adv = 0
+    correct_clean = 0
+    correct_adv = 0
+    total = 0
+    total_examples = 0
+    
+    # For prototype analysis
+    corr_dist_proto = 0
+    incorr_same_proto = 0
+    corr_same_proto = 0
+    incorr_dist_proto = 0
+    
+    # For confusion matrix
+    all_true_labels = []
+    all_clean_preds = []
+    all_adv_preds = []
+    
+    # Get prototype images for visualization
+    prototype_distances = model.prototype_layer.prototype_distances
+    prototype_imgs = model.decoder(prototype_distances.reshape((-1,10,2,2))).detach().cpu()
+    
+    for i, batch in enumerate(test_loader):
+        batch_x, batch_y = batch
+        batch_x = batch_x.to(device)
+        batch_y = batch_y.to(device)
+        
+        # Convert to grayscale if needed
+        if batch_x.size(1) == 3:
+            grayscale_images = torch.mean(batch_x, dim=1, keepdim=True)
+        else:
+            grayscale_images = batch_x
+
+        pred_y = model.forward(grayscale_images)
+        pred_y = softmax(pred_y)
+
+        # For CW attack, we need to pass both images and labels
+        # The CW class handles its own loss calculation internally
+        perturbed_batch_x = attack(grayscale_images, batch_y)
+
+        pred_y_adv = model.forward(perturbed_batch_x)
+        pred_y_adv = softmax(pred_y_adv)
+
+        # test accuracy
+        conf_y, max_indices = torch.max(pred_y,1)
+        n = max_indices.size(0)
+        test_ac += (max_indices == batch_y).sum(dtype=torch.float32)/n
+        correct_clean += (max_indices == batch_y).sum().item()
+
+        #adversarial test accuracy
+        conf_y_adv, max_indices_adv = torch.max(pred_y_adv,1)
+        n = max_indices_adv.size(0)
+        test_ac_adv += (max_indices_adv == batch_y).sum(dtype=torch.float32)/n
+        correct_adv += (max_indices_adv == batch_y).sum().item()
+        
+        total += batch_y.size(0)
+
+        # Store predictions for confusion matrix
+        all_true_labels.extend(batch_y.cpu().numpy())
+        all_clean_preds.extend(max_indices.cpu().numpy())
+        all_adv_preds.extend(max_indices_adv.cpu().numpy())
+
+        # Visualize results for first batch
+        if i == 0:
+            for j in range(min(3, len(grayscale_images))):
+                # Original image
+                plt.subplot(3, 4, j*4+1)
+                plt.imshow(grayscale_images[j].detach().squeeze().cpu().numpy(), cmap='gray')
+                plt.title(f"Clean\nTrue: {batch_y[j].item()}\nPred: {max_indices[j].item()}")
+                plt.axis('off')
+                
+                # Adversarial image
+                plt.subplot(3, 4, j*4+2)
+                plt.imshow(perturbed_batch_x[j].detach().squeeze().cpu().numpy(), cmap='gray')
+                plt.title(f"Adversarial\nPred: {max_indices_adv[j].item()}")
+                plt.axis('off')
+                
+                # Perturbation
+                plt.subplot(3, 4, j*4+3)
+                perturbation = (perturbed_batch_x[j] - grayscale_images[j]).detach().abs().squeeze().cpu().numpy()
+                plt.imshow(perturbation, cmap='hot')
+                plt.title("Perturbation")
+                plt.colorbar()
+                plt.axis('off')
+                
+                # Histogram of perturbation
+                plt.subplot(3, 4, j*4+4)
+                plt.hist(perturbation.flatten(), bins=50)
+                plt.title("Perturbation Distribution")
+            
+            plt.tight_layout()
+            plt.show()
+
+        total_examples += show_adversarial_examples(model, grayscale_images, perturbed_batch_x, batch_y, max_indices, max_indices_adv, conf_y, conf_y_adv, n_examples-total_examples, examples_type)
+
+        # Distances for normal and adversarial examples 
+        distances = model.prototype_layer(model.encoder(grayscale_images).view(grayscale_images.size(0), -1))  
+        distances_adv = model.prototype_layer(model.encoder(perturbed_batch_x).view(perturbed_batch_x.size(0), -1)) 
+
+        for idx in range(grayscale_images.size(0)): 
+            dists = distances[idx].detach().cpu().numpy()  
+            dists_adv = distances_adv[idx].detach().cpu().numpy()  
+
+            # Sort prototypes by distances
+            sorted_prototypes = sorted(zip(prototype_imgs, dists), key=lambda x: x[1])
+            sorted_prototype_imgs, sorted_dists = zip(*sorted_prototypes)
+
+            # Sort prototypes by distances for adversarial examples
+            sorted_prototypes_adv = sorted(zip(prototype_imgs, dists_adv), key=lambda x: x[1])
+            sorted_prototype_imgs_adv, sorted_dists_adv = zip(*sorted_prototypes_adv)
+
+            # If correctly classified and the closest prototype is different
+            if batch_y[idx] == max_indices_adv[idx] and not torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
+                corr_dist_proto += 1/n
+
+            # If incorrectly classified and the closest prototype is the same
+            elif batch_y[idx] != max_indices_adv[idx] and torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
+                incorr_same_proto += 1/n
+
+            # If correctly classified and the closest prototype is the same
+            elif batch_y[idx] == max_indices_adv[idx] and torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
+                corr_same_proto += 1/n
+
+            #If incorrectly classified and the closest prototype is different
+            elif batch_y[idx] != max_indices_adv[idx] and not torch.allclose(sorted_prototype_imgs_adv[0], sorted_prototype_imgs[0]):
+                incorr_dist_proto += 1/n
+
+    # Create confusion matrices
+    categories = {i: str(i) for i in range(10)}  # Assuming 10 classes, modify if different
+    cm_clean = confusion_matrix(all_true_labels, all_clean_preds, labels=list(categories.keys()))
+    cm_adv = confusion_matrix(all_true_labels, all_adv_preds, labels=list(categories.keys()))
+
+    # Draw confusion matrices
+    print("\nConfusion Matrix for Clean Examples:")
+    draw_confusion_matrix(cm_clean, categories)
+    print("\nConfusion Matrix for Adversarial Examples:")
+    draw_confusion_matrix(cm_adv, categories)
+
+    # Calculate final metrics
+    clean_acc = 100 * correct_clean / total
+    adv_acc = 100 * correct_adv / total
+    attack_success = 100 * (correct_clean - correct_adv) / correct_clean if correct_clean > 0 else 0
+
+    print("\nEvaluation Metrics:")
+    print(f"Clean Accuracy: {clean_acc:.2f}%")
+    print(f"Adversarial Accuracy: {adv_acc:.2f}%")
+    print(f"Attack Success Rate: {attack_success:.2f}%")
+    
+    #print("\nPrototype Analysis:")
+    #print("test set:")
+    #print("\taccuracy: {:.4f}".format(test_ac))
+
+    #print("adversarial test set:")
+    #print("\taccuracy: {:.4f}".format(test_ac_adv))
+    #print("\tCorrectly classified and the closest prototype is different: {:.4f}".format(corr_dist_proto))
+    #print("\tCorrectly classified and the closest prototype is the same: {:.4f}".format(corr_same_proto))
+    #print("\tIncorrectly classified and the closest prototype is the same: {:.4f}".format(incorr_same_proto))
+    #print("\tIncorrectly classified and the closest prototype is different: {:.4f}".format(incorr_dist_proto))
+    
+    # return max_indices, max_indices_adv
