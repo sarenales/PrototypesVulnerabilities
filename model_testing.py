@@ -1605,15 +1605,3 @@ def test_adversarial_cw(model, test_loader, attack, n_examples, examples_type):
     print(f"Adversarial Accuracy: {adv_acc:.2f}%")
     print(f"Attack Success Rate: {attack_success:.2f}%")
     
-    #print("\nPrototype Analysis:")
-    #print("test set:")
-    #print("\taccuracy: {:.4f}".format(test_ac))
-
-    #print("adversarial test set:")
-    #print("\taccuracy: {:.4f}".format(test_ac_adv))
-    #print("\tCorrectly classified and the closest prototype is different: {:.4f}".format(corr_dist_proto))
-    #print("\tCorrectly classified and the closest prototype is the same: {:.4f}".format(corr_same_proto))
-    #print("\tIncorrectly classified and the closest prototype is the same: {:.4f}".format(incorr_same_proto))
-    #print("\tIncorrectly classified and the closest prototype is different: {:.4f}".format(incorr_dist_proto))
-    
-    # return max_indices, max_indices_adv
