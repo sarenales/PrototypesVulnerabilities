@@ -15,73 +15,9 @@ Through theoretical insights and empirical evaluations, the project contributes 
 
 ![alt text](https://github.com/sarenales/PrototypesVulnerabilities/blob/main/images/GoodFellow2014.png "GoodFellow 2014 paper")
 
-## 🗂 Project Structure
-
-📁 data/
-
-└── MNIST/ # MNIST dataset
-
-📁 saved_model/
-
-└── mnist_model/ # Pretrained models
-
-📄 Adversarial_Attacks_Testing.ipynb # Main notebook for testing attacks
-
-📄 PrototypeDL_MNIST_Visualization.ipynb # Visualization of prototypes
-
-📄 View_FineTune.ipynb # Visualizing fine-tuning effects
-
-📄 Attack.py # Base class for attack methods
-
-📄 adversarial_attacks.py # Wrapper for multiple attack strategies
-
-📄 apgd.py # APGD attack implementation
-
-📄 deepfool.py # DeepFool attack implementation
-
-📄 eaden.py # EADEN (Elastic-Net) attack
-
-📄 eadl1.py # EAD L1-variant
-
-📄 pixle.py # Pixle attack
-
-📄 sparsefool.py # SparseFool attack
-
-📄 finetune_model.py # Fine-tuning the prototype model
-
-📄 finetune_attacks.py # Adversarial fine-tuning
-
-📄 model_testing.py # Testing utilities
-
-📄 autoencoder_helpers.py # Helper functions for autoencoder
-
-📄 data_loader.py # Data loading utilities
-
-📄 data_preprocessing.py # Data preprocessing steps
-
-📄 loss_functions.py # Custom loss functions
-
-📄 modules.py # Model and prototype modules
-
-📄 train_mnist.py # Training base MNIST model
-
-📄 train_mnist_adv.py # Training model with adversarial robustness
-
-📄 ftb30preconst.png # Example image from results
-
-📄 test.drawio # Architecture diagram (editable with draw.io)
-
-📄 requirements.txt # Python dependencies
-
-📄 .gitignore # Git ignore list
-
-📄 README.md # Project documentation
-
-
-
 ---
 
-## ⚙️ Installation
+##  Installation
 
 1. **Clone the repository**
    ```
@@ -100,7 +36,7 @@ Through theoretical insights and empirical evaluations, the project contributes 
   
 ---
 
-## 🚀 How to Run
+## How to Run
 - **Train a basic MNIST classifer**
   ```
   python train_mnist.py
@@ -116,7 +52,7 @@ Through theoretical insights and empirical evaluations, the project contributes 
 
 ---
 
-## 🧪 Attacks implemented
+## Attacks implemented
 The project includes several adversarial attack methods:
 - DeepFool
 - Projected Gradient Descent (PGD / APGD)
@@ -125,7 +61,7 @@ The project includes several adversarial attack methods:
 - Pixle Attack
 
 ---
-## 🧠 Goals of the Project
+## Goals of the Project
 
 Evaluate how prototype-based explanations degrade under adversarial conditions.
 
