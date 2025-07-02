@@ -13,6 +13,7 @@ However, the **robustness** and **security** of these explanations under adversa
 
 Through theoretical insights and empirical evaluations, the project contributes to a better understanding of how XAI methods can be **hardened** against adversarial manipulations.
 
+![alt text](https://github.com/sarenales/PrototypesVulnerabilities/blob/main/images/GoodFellow2014.png "GoodFellow 2014 paper")
 
 ## 🗂 Project Structure
 
