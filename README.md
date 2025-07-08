@@ -69,6 +69,26 @@ Compare attack methods in terms of their ability to alter both model predictions
 
 Propose methods (e.g., fine-tuning, robust training) to improve explanation reliability.
 
+---
+
+## Future Directions
+
+- Scalable evaluation frameworks for prototype-based models under diverse adversarial settings
+- New **architectures or loss functions** tailored for explanation robustness
+- Further exploration of **interpretability as an attack vector**, rather than just a defense mechanism
+
+---
+## Implications
+
+Our results underscore a **fundamental paradox**:
+
+> **Transparency enables trust, but also opens doors for adversarial exploitation.**
+
+This has implications for:
+- **Cybersecurity protocols**, particularly regarding zero-day adversarial vulnerabilities
+- The design of **robust and interpretable AI systems**
+- The development of **explanation-aware defenses** that preserve both accuracy and human trust
+
 
 ----
 This project is for academic and research purposes. Please contact the author for reuse or extension in other contexts.
